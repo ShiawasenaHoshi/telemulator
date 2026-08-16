@@ -19,14 +19,14 @@ ALERT = "222222222:AAFakeAlertTokenForE2ETests0000"
 async def test_get_chat_private_and_group_shapes() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 42, "first_name": "Анна", "username": "anna"})
+    await client.post("/admin/users", json={"id": 42, "first_name": "Anna", "username": "anna"})
     await client.post("/admin/bots", json={"token": TOKEN})
     await client.post("/admin/dialogs", json={"user_id": 42, "bot_token": TOKEN})
     priv = (await client.post(f"/bot{TOKEN}/getChat", data={"chat_id": "42"})).json()["result"]
     assert priv["type"] == "private"
-    assert priv["first_name"] == "Анна"
+    assert priv["first_name"] == "Anna"
     assert "title" not in priv
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (
       await client.post("/user/chats", json={"type": "supergroup", "title": "S"})
@@ -39,7 +39,7 @@ async def test_get_chat_private_and_group_shapes() -> None:
 async def test_get_chat_member_left_self_200_never_400() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
     await client.post("/admin/bots", json={"token": TOKEN})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (
@@ -65,7 +65,7 @@ async def test_get_chat_member_left_self_200_never_400() -> None:
 async def test_get_chat_administrators_hides_other_bots_by_default() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
     await client.post("/admin/bots", json={"token": TOKEN})
     await client.post("/admin/bots", json={"token": ALERT})
     await client.post("/user/sessions", json={"user_id": 1})
@@ -98,8 +98,8 @@ async def test_get_chat_administrators_hides_other_bots_by_default() -> None:
 async def test_get_chat_member_count_skips_left() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
-    await client.post("/admin/users", json={"id": 2, "first_name": "Б"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/users", json={"id": 2, "first_name": "B"})
     await client.post("/admin/bots", json={"token": TOKEN})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (
@@ -120,8 +120,8 @@ async def test_get_chat_member_count_skips_left() -> None:
 async def test_promote_on_group_is_400() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
-    await client.post("/admin/users", json={"id": 2, "first_name": "Б"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/users", json={"id": 2, "first_name": "B"})
     await client.post("/admin/bots", json={"token": TOKEN})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (
@@ -144,7 +144,7 @@ async def test_promote_on_group_is_400() -> None:
 async def test_ban_and_promote_owner_are_400() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
     await client.post("/admin/bots", json={"token": TOKEN})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (
@@ -169,8 +169,8 @@ async def test_ban_and_promote_owner_are_400() -> None:
 async def test_ban_in_basic_group_is_left_readd_without_unban() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
-    await client.post("/admin/users", json={"id": 2, "first_name": "Б"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/users", json={"id": 2, "first_name": "B"})
     await client.post("/admin/bots", json={"token": TOKEN})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (
@@ -197,9 +197,9 @@ async def test_ban_in_basic_group_is_left_readd_without_unban() -> None:
 async def test_unban_kicked_keeps_left_record_and_kicks_living() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
-    await client.post("/admin/users", json={"id": 2, "first_name": "Б"})
-    await client.post("/admin/users", json={"id": 3, "first_name": "В"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/users", json={"id": 2, "first_name": "B"})
+    await client.post("/admin/users", json={"id": 3, "first_name": "C"})
     await client.post("/admin/bots", json={"token": TOKEN})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (
@@ -240,8 +240,8 @@ async def test_unban_kicked_keeps_left_record_and_kicks_living() -> None:
 async def test_channel_restrict_default_true_and_demote_bot_leaves() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
-    await client.post("/admin/users", json={"id": 2, "first_name": "Б"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/users", json={"id": 2, "first_name": "B"})
     await client.post("/admin/bots", json={"token": TOKEN})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (
@@ -291,7 +291,7 @@ async def test_channel_restrict_default_true_and_demote_bot_leaves() -> None:
 async def test_my_chat_member_on_add_and_kicked_gets_no_leave_message() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
     await client.post("/admin/bots", json={"token": TOKEN})
     await client.post("/admin/bots", json={"token": ALERT})
     await client.post("/user/sessions", json={"user_id": 1})
@@ -323,8 +323,8 @@ async def test_my_chat_member_on_add_and_kicked_gets_no_leave_message() -> None:
 async def test_user_patch_drops_can_be_edited_from_earlier_bot_promote() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
-    await client.post("/admin/users", json={"id": 2, "first_name": "Б"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/users", json={"id": 2, "first_name": "B"})
     await client.post("/admin/bots", json={"token": TOKEN})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (

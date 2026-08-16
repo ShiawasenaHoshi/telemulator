@@ -5,7 +5,7 @@ import time
 from collections import defaultdict
 from collections.abc import Callable
 
-# Bots FAQ на 2026-08: https://core.telegram.org/bots/faq#broadcasting-to-users
+# Bots FAQ as of 2026-08: https://core.telegram.org/bots/faq#broadcasting-to-users
 PER_CHAT_PER_SEC = 1.0
 GLOBAL_PER_SEC = 30.0
 GROUP_PER_MIN = 20.0

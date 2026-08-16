@@ -14,22 +14,22 @@ TOKEN = "111111111:AAFakeBotTokenForE2ETests0000000"
 async def test_sse_pushes_bot_message_to_the_human() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
     await client.post("/admin/bots", json={"token": TOKEN})
     await client.post("/admin/dialogs", json={"user_id": 1, "bot_token": TOKEN})
     created = await client.post("/user/sessions", json={"user_id": 1})
     token = created.json()["token"]
 
     queue = app.state.network.subscribe()
-    await client.post(f"/bot{TOKEN}/sendMessage", data={"chat_id": "1", "text": "пинг"})
+    await client.post(f"/bot{TOKEN}/sendMessage", data={"chat_id": "1", "text": "ping"})
     event = queue.get_nowait()
     app.state.network.unsubscribe(queue)
     assert event["type"] == "message"
     assert event["peer_id"] == 111111111
-    assert event["message"]["text"] == "пинг"
+    assert event["message"]["text"] == "ping"
     assert event["message"]["chat"]["id"] == 111111111
 
-    # httpx ASGITransport ждёт конец стрима, поэтому ленту читаем из генератора.
+    # httpx ASGITransport waits for the stream to end, so we read the feed from the generator.
     response = await events(session_request(app, token))
     assert response.headers["content-type"].startswith("text/event-stream")
     app.state.network.emit(event)
@@ -60,7 +60,7 @@ async def test_events_requires_session() -> None:
 async def test_events_is_event_stream_with_session() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
     created = await client.post("/user/sessions", json={"user_id": 1})
     token = created.json()["token"]
   response = await events(session_request(app, token))

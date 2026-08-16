@@ -14,11 +14,11 @@ TOKEN = "111111111:AAFakeBotTokenForE2ETests0000000"
 def test_sqlite_survives_new_network(tmp_path: Path) -> None:
   path = tmp_path / "net.sqlite"
   net = Network()
-  net.create_user(id=5, first_name="Жив")
+  net.create_user(id=5, first_name="Alive")
   SqliteStore(path).save(net.dump())
   restored = Network()
   restored.load(SqliteStore(path).load())
-  assert restored.users[5]["first_name"] == "Жив"
+  assert restored.users[5]["first_name"] == "Alive"
 
 
 def test_sqlite_load_empty_returns_none(tmp_path: Path) -> None:
@@ -41,11 +41,11 @@ async def test_create_app_reloads_sqlite_across_instances(tmp_path: Path) -> Non
   path = tmp_path / "net.sqlite"
   app = create_app(sqlite_path=str(path))
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 5, "first_name": "Жив"})
+    await client.post("/admin/users", json={"id": 5, "first_name": "Alive"})
     await client.post("/admin/bots", json={"token": TOKEN})
     await client.post(f"/bot{TOKEN}/getMe")
   app2 = create_app(sqlite_path=str(path))
-  assert app2.state.network.users[5]["first_name"] == "Жив"
+  assert app2.state.network.users[5]["first_name"] == "Alive"
   assert TOKEN in app2.state.network.bots
 
 

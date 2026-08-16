@@ -51,21 +51,21 @@ def test_old_snapshot_journal_fields_default_to_none() -> None:
 
 def test_user_and_bot_are_bot_api_users() -> None:
   net = Network()
-  user = net.create_user(id=42, first_name="Анна", username="anna")
+  user = net.create_user(id=42, first_name="Anna", username="anna")
   bot = net.create_bot(token=TOKEN, first_name="Club")
-  assert user == {"id": 42, "is_bot": False, "first_name": "Анна", "username": "anna"}
+  assert user == {"id": 42, "is_bot": False, "first_name": "Anna", "username": "anna"}
   assert bot["is_bot"] is True
   assert bot["id"] == 111111111
 
 
 def test_private_bot_chat_id_is_the_users_id() -> None:
   net = Network()
-  net.create_user(id=42, first_name="Анна")
+  net.create_user(id=42, first_name="Anna")
   net.create_bot(token=TOKEN)
   chat = net.ensure_private_chat(42, 111111111)
   assert chat["id"] == 42
   assert chat["type"] == "private"
-  assert chat["first_name"] == "Анна"
+  assert chat["first_name"] == "Anna"
 
 
 async def test_update_queue_acks_like_telegram() -> None:
@@ -80,24 +80,24 @@ async def test_update_queue_acks_like_telegram() -> None:
 
 def test_two_people_share_one_thread_with_mirrored_chat_ids() -> None:
   net = Network()
-  net.create_user(id=1, first_name="А")
-  net.create_user(id=2, first_name="Б")
+  net.create_user(id=1, first_name="A")
+  net.create_user(id=2, first_name="B")
   net.open_private_users(1, 2)
-  net.append_message(2, {"from": {"id": 1, "is_bot": False, "first_name": "А"}, "text": "привет", "chat": {"id": 2, "type": "private"}})
-  # Сторона А пишет в чат id=2 (собеседник). Та же лента видна как messages(1) со стороны Б.
-  assert net.messages(2)[0]["text"] == "привет"
-  assert net.messages(1)[0]["text"] == "привет"
+  net.append_message(2, {"from": {"id": 1, "is_bot": False, "first_name": "A"}, "text": "hi", "chat": {"id": 2, "type": "private"}})
+  # Side A writes into chat id=2 (the peer). The same feed is visible as messages(1) from B's side.
+  assert net.messages(2)[0]["text"] == "hi"
+  assert net.messages(1)[0]["text"] == "hi"
 
 
 def test_two_p2p_chats_resolve_by_peer_not_first_match() -> None:
   net = Network()
-  net.create_user(id=1, first_name="А")
-  net.create_user(id=2, first_name="Б")
-  net.create_user(id=3, first_name="В")
+  net.create_user(id=1, first_name="A")
+  net.create_user(id=2, first_name="B")
+  net.create_user(id=3, first_name="C")
   net.open_private_users(1, 2)
   net.open_private_users(1, 3)
-  net.append_message(2, {"from": {"id": 1, "is_bot": False, "first_name": "А"}, "text": "x", "chat": {"id": 2, "type": "private"}})
-  net.append_message(3, {"from": {"id": 1, "is_bot": False, "first_name": "А"}, "text": "y", "chat": {"id": 3, "type": "private"}})
+  net.append_message(2, {"from": {"id": 1, "is_bot": False, "first_name": "A"}, "text": "x", "chat": {"id": 2, "type": "private"}})
+  net.append_message(3, {"from": {"id": 1, "is_bot": False, "first_name": "A"}, "text": "y", "chat": {"id": 3, "type": "private"}})
   assert net.messages(2)[0]["text"] == "x"
   assert net.messages(3)[0]["text"] == "y"
   with pytest.raises(ValueError):
@@ -106,30 +106,30 @@ def test_two_p2p_chats_resolve_by_peer_not_first_match() -> None:
 
 def test_viewer_sees_each_peer_as_its_own_chat() -> None:
   net = Network()
-  net.create_user(id=1, first_name="А")
-  net.create_user(id=2, first_name="Б")
+  net.create_user(id=1, first_name="A")
+  net.create_user(id=2, first_name="B")
   net.create_bot(token=TOKEN, first_name="Club")
   net.ensure_private_chat(1, 111111111)
   net.open_private_users(1, 2)
   net.append_bot_message(
-    TOKEN, 1, {"chat": {"id": 1, "type": "private"}, "from": net.users[111111111], "text": "меню"}
+    TOKEN, 1, {"chat": {"id": 1, "type": "private"}, "from": net.users[111111111], "text": "menu"}
   )
   net.append_message(
     2,
     {
-      "from": {"id": 1, "is_bot": False, "first_name": "А"},
+      "from": {"id": 1, "is_bot": False, "first_name": "A"},
       "chat": {"id": 2, "type": "private"},
-      "text": "привет",
+      "text": "hi",
     },
   )
 
   chats = {chat["id"]: chat for chat in net.chats_for(1)}
   assert chats[111111111]["first_name"] == "Club"
   assert chats[111111111]["type"] == "private"
-  assert chats[2]["first_name"] == "Б"
-  assert [m["text"] for m in net.thread_for(1, 111111111)] == ["меню"]
-  assert [m["text"] for m in net.thread_for(1, 2)] == ["привет"]
-  assert [m["text"] for m in net.thread_for(2, 1)] == ["привет"]
+  assert chats[2]["first_name"] == "B"
+  assert [m["text"] for m in net.thread_for(1, 111111111)] == ["menu"]
+  assert [m["text"] for m in net.thread_for(1, 2)] == ["hi"]
+  assert [m["text"] for m in net.thread_for(2, 1)] == ["hi"]
 
 
 def test_stale_callback_expires_and_answers_false() -> None:

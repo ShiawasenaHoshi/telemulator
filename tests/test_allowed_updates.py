@@ -17,7 +17,7 @@ ALERT = "222222222:AAFakeAlertTokenForE2ETests0000"
 async def test_default_hides_chat_member_keeps_my_chat_member() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
     await client.post("/admin/bots", json={"token": TOKEN})
     await client.post("/admin/bots", json={"token": ALERT})
     await client.post("/user/sessions", json={"user_id": 1})
@@ -119,7 +119,7 @@ async def test_setwebhook_with_same_list_keeps_queued_updates_hidden() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
     await client.post("/admin/bots", json={"token": TOKEN})
-    # url пустой: подписку setWebhook пишет, но апдейты остаются в очереди.
+    # empty url: setWebhook writes the subscription, but updates stay in the queue.
     hook = {"url": "", "allowed_updates": json.dumps(["callback_query"])}
     await client.post(f"/bot{TOKEN}/setWebhook", data=hook)
     net = app.state.network

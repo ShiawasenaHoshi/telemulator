@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <title>telemulator</title>
@@ -13,41 +13,41 @@
         <select id="account"></select>
       </header>
       <form id="new-user">
-        <input name="first_name" placeholder="Имя человека" required>
-        <button type="submit">Человек</button>
+        <input name="first_name" placeholder="Person name" required>
+        <button type="submit">Person</button>
       </form>
       <form id="new-bot">
         <input name="token" placeholder="123456:token" required>
-        <input name="first_name" placeholder="Имя бота" value="Bot">
-        <button type="submit">Бот</button>
+        <input name="first_name" placeholder="Bot name" value="Bot">
+        <button type="submit">Bot</button>
       </form>
       <form id="new-group">
-        <input name="title" placeholder="Название группы" required>
-        <input name="member_ids" placeholder="id через запятую">
-        <button type="submit">Группа</button>
+        <input name="title" placeholder="Group title" required>
+        <input name="member_ids" placeholder="ids, comma-separated">
+        <button type="submit">Group</button>
       </form>
       <form id="new-channel">
-        <input name="title" placeholder="Название канала" required>
-        <input name="member_ids" placeholder="id через запятую">
-        <button type="submit">Канал</button>
+        <input name="title" placeholder="Channel title" required>
+        <input name="member_ids" placeholder="ids, comma-separated">
+        <button type="submit">Channel</button>
       </form>
       <ul id="chats"></ul>
     </aside>
     <main id="chat">
-      <header id="chat-head">Выберите чат</header>
+      <header id="chat-head">Select a chat</header>
       <section id="members" hidden>
         <ul id="member-list"></ul>
         <form id="add-member">
-          <input name="user_id" placeholder="id участника" required>
-          <label><input type="checkbox" id="add-as-admin"> админ</label>
-          <button type="submit">Добавить</button>
+          <input name="user_id" placeholder="member id" required>
+          <label><input type="checkbox" id="add-as-admin"> admin</label>
+          <button type="submit">Add</button>
         </form>
       </section>
       <div id="feed"></div>
       <div id="reply-kb" hidden></div>
       <form id="composer">
-        <input id="draft" autocomplete="off" placeholder="Сообщение">
-        <button type="submit">Отправить</button>
+        <input id="draft" autocomplete="off" placeholder="Message">
+        <button type="submit">Send</button>
       </form>
     </main>
   </div>

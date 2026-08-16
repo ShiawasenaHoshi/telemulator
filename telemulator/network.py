@@ -25,12 +25,12 @@ from telemulator.chats import (
 )
 from telemulator.journal import Journal, journal_item
 
-# Telegram гасит callback query примерно за 15 минут. Без срока записи
-# копятся вечно: press, который бот не ответил, остаётся навсегда — и в
-# памяти, и в каждом снимке.
+# Telegram expires a callback query after about 15 minutes. Without a TTL the
+# records pile up forever: a press the bot never answered stays forever — in
+# memory and in every snapshot.
 CALLBACK_TTL = 900
-# Свёрнутая вкладка читает SSE медленно; лучше потерять старое событие,
-# чем расти без потолка.
+# A backgrounded tab reads SSE slowly; better to drop an old event than grow
+# without a ceiling.
 SSE_QUEUE_LIMIT = 1000
 
 EXCLUDED_BY_DEFAULT = frozenset(
@@ -43,10 +43,10 @@ class BotRuntime:
   user: dict[str, Any]
   privacy_mode: bool = True
   updates: list[dict[str, Any]] = field(default_factory=list)
-  # Оффсет N+1 в getUpdates означает, что обработчик апдейта N вернул
-  # управление: при handle_as_tasks=False aiogram делает следующий запрос
-  # только после `await handle_update`. Это единственная точная граница
-  # «бот дообработал» — отправил все сообщения и записал всё в базу.
+  # Offset N+1 in getUpdates means the handler for update N has returned
+  # control: with handle_as_tasks=False aiogram issues the next request
+  # only after `await handle_update`. That is the only precise boundary
+  # of "the bot has finished" — it sent every message and wrote everything to the DB.
   acked: int = 0
   errors: dict[int, tuple[int, dict[str, Any]]] = field(default_factory=dict)
   webhook_url: str = ""
@@ -55,7 +55,7 @@ class BotRuntime:
   pending_getupdates: asyncio.Task[Any] | None = None
   preempted: set[asyncio.Task[Any]] = field(default_factory=set)
   allowed_updates: list[str] | None = None
-  # Смена подписки не глотает уже лежащие: id меньше cutoff всегда видны.
+  # Changing the subscription does not swallow what is already queued: ids below cutoff stay visible.
   allowed_updates_cutoff: int = 0
   _next_update_id: int = 1
   _arrived: asyncio.Event = field(default_factory=asyncio.Event)
@@ -84,8 +84,8 @@ def apply_allowed_updates(runtime: BotRuntime, params: dict[str, Any]) -> None:
   raw = params["allowed_updates"]
   parsed = json.loads(str(raw)) if not isinstance(raw, list) else raw
   updated = None if parsed == [] else [str(x) for x in parsed]
-  # Клиент шлёт allowed_updates на каждом опросе. Двигать cutoff без смены
-  # подписки нельзя: уже лежащие апдейты чужих типов станут видны.
+  # The client sends allowed_updates on every poll. Moving the cutoff without a
+  # subscription change is not allowed: already queued updates of other types would become visible.
   if updated == runtime.allowed_updates:
     return
   runtime.allowed_updates_cutoff = runtime._next_update_id
@@ -271,11 +271,11 @@ class Network:
     return user
 
   def reset(self) -> Network:
-    """Пустая сеть, но нумерация апдейтов продолжается.
+    """Empty network, but update numbering continues.
 
-    Бот в compose переживает /admin/reset и держит offset в памяти. Если id
-    пойдут с 1, он их уже не заберёт: getUpdates(offset=N) вернёт пусто, а
-    дедуп tg_updates в Postgres примет их за старые. Дефект №33.
+    A bot in compose survives /admin/reset and keeps its offset in memory. If ids
+    restart from 1, it will never pick them up: getUpdates(offset=N) returns empty,
+    and the tg_updates dedup in Postgres treats them as old. Defect #33.
     """
     fresh = Network()
     for token, runtime in self.bots.items():
@@ -290,10 +290,11 @@ class Network:
         None if runtime.allowed_updates is None else list(runtime.allowed_updates)
       )
       fresh.bots[token].allowed_updates_cutoff = runtime.allowed_updates_cutoff
-    # Подписчик SSE — открытое соединение браузера, а не состояние сети.
-    # Без переноса вкладка живёт, но глохнет навсегда: события уходят
-    # в очередь мёртвой сети. Сессии сброс не переживают — людей больше
-    # нет; клиент узнаёт об этом из события reset и заводит человека заново.
+    # An SSE subscriber is an open browser connection, not network state.
+    # Without carrying it over the tab stays alive but goes mute forever:
+    # events drain into the dead network's queue. Sessions do not survive
+    # reset — the people are gone; the client learns that from the reset
+    # event and creates a person again.
     fresh._subscribers = self._subscribers
     self._subscribers = []
     fresh.emit({"type": "reset"})
@@ -341,7 +342,7 @@ class Network:
       specs = [{"user_id": uid} for uid in (member_ids or [])]
     for spec in specs:
       member_id = int(spec["user_id"])
-      # Создатель уже в members; повторный add снёс бы ему статус creator.
+      # The creator is already in members; a second add would wipe their creator status.
       if member_id in record.members:
         continue
       flags = {k: bool(v) for k, v in spec.items() if k.startswith("can_")}
@@ -543,7 +544,7 @@ class Network:
         target.promoted_by_bot_id = None
     elif status == "administrator":
       target.status = "administrator"
-      # Права выдал человек через User/Admin API — can_be_edited боту не даём.
+      # A person granted the rights via User/Admin API — do not give the bot can_be_edited.
       target.promoted_by_bot_id = None
       for name in ADMIN_FLAGS:
         setattr(target, name, bool(flags.get(name, False)))
@@ -684,7 +685,7 @@ class Network:
     return update_id
 
   def _open_dialog_from_inbound(self, bot: BotRuntime, payload: dict[str, Any]) -> None:
-    """Человек написал боту в private — диалог открыт, бот может ответить."""
+    """A person wrote the bot in private — the dialog is open, the bot can reply."""
     message = payload.get("message")
     if not isinstance(message, dict):
       return
@@ -699,7 +700,7 @@ class Network:
     if from_id not in self.users:
       self.create_user(
         id=from_id,
-        first_name=str(from_user.get("first_name") or "Тест"),
+        first_name=str(from_user.get("first_name") or "Test"),
         username=from_user.get("username"),
       )
     self.ensure_private_chat(from_id, bot.user["id"])
@@ -723,7 +724,7 @@ class Network:
       )
 
   async def drain_webhooks(self) -> None:
-    """Дождаться доставки: иначе стоп сервера рвёт POST на полуслове."""
+    """Wait for delivery: otherwise stopping the server tears the POST mid-sentence."""
     while self._webhook_tasks:
       await asyncio.gather(*tuple(self._webhook_tasks), return_exceptions=True)
 
@@ -734,15 +735,15 @@ class Network:
       bot._acked.set()
 
   async def wait_acked(self, token: str, update_id: int, timeout: float) -> bool:
-    """Ждать подтверждения апдейта. False — не дождались за timeout."""
+    """Wait for the update to be acked. False — did not make it within timeout."""
     bot = self.bots[token]
     deadline = time.monotonic() + timeout
     while bot.acked < update_id:
       remaining = deadline - time.monotonic()
       if remaining <= 0:
         return False
-      # Между проверкой и clear() нет await, поэтому ack() не может
-      # проскочить незамеченным: он выполняется синхронно.
+      # There is no await between the check and clear(), so ack() cannot
+      # slip through unnoticed: it runs synchronously.
       bot._acked.clear()
       try:
         await asyncio.wait_for(bot._acked.wait(), timeout=remaining)

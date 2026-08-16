@@ -35,7 +35,7 @@ def deliver_channel_post_to_bots(
   key: str = "channel_post",
   skip_token: str | None = None,
 ) -> None:
-  """Privacy на каналы не действует: пост видят все боты-участники."""
+  """Privacy does not apply to channels: every member bot sees the post."""
   for token, runtime in network.bots.items():
     if token == skip_token:
       continue

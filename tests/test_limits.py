@@ -14,10 +14,10 @@ def test_per_chat_and_global_buckets() -> None:
   assert lim.check(1, 10) is None
   lim.record(1, 10)
   assert lim.check(1, 10) == 1
-  assert lim.check(1, 11) is None  # другой чат
+  assert lim.check(1, 11) is None  # other chat
   for chat in range(100, 130):
     lim.record(1, chat)
-  assert lim.check(1, 200) == 1  # глобальные 30/с
+  assert lim.check(1, 200) == 1  # global 30/s
 
 
 async def test_profile_off_by_default_allows_burst() -> None:
@@ -60,7 +60,7 @@ async def test_admin_limits_installs_and_clears_the_profile() -> None:
     assert app.state.limiter is not None
     await client.post("/admin/limits", json={"profile": None})
     assert app.state.limiter is None
-    bad = await client.post("/admin/limits", json={"profile": "выдумка"})
+    bad = await client.post("/admin/limits", json={"profile": "made-up"})
     assert bad.status_code == 400
 
 
@@ -86,7 +86,7 @@ async def test_faq_20_per_min_hits_chatrecord_not_outbound() -> None:
   app = create_app()
   app.state.limiter = RateLimiter(clock=lambda: now[0])
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
     await client.post("/admin/bots", json={"token": TOKEN})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (
@@ -105,7 +105,7 @@ async def test_faq_20_per_min_hits_chatrecord_not_outbound() -> None:
     assert limited.status_code == 429
     assert "retry after" in limited.json()["description"]
     assert limited.json()["parameters"]["retry_after"] >= 1
-    await client.post("/admin/users", json={"id": 2, "first_name": "Б"})
+    await client.post("/admin/users", json={"id": 2, "first_name": "B"})
     await client.post("/admin/dialogs", json={"user_id": 2, "bot_token": TOKEN})
     now[0] += 1.01
     priv = await client.post(f"/bot{TOKEN}/sendMessage", data={"chat_id": "2", "text": "p"})

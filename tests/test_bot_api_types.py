@@ -11,11 +11,11 @@ TOKEN = "111111111:AAFakeBotTokenForE2ETests0000000"
 
 
 async def test_every_implemented_method_answers_with_doc_types() -> None:
-  """Модели aiogram — машинная копия доки. Что не собралось, то не drop-in."""
+  """aiogram models are a machine copy of the docs. If it does not build, it is not drop-in."""
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
     await client.post("/admin/bots", json={"token": TOKEN})
-    await client.post("/admin/users", json={"id": 42, "first_name": "Анна"})
+    await client.post("/admin/users", json={"id": 42, "first_name": "Anna"})
     await client.post("/admin/dialogs", json={"user_id": 42, "bot_token": TOKEN})
 
     me = (await client.post(f"/bot{TOKEN}/getMe")).json()["result"]
@@ -36,7 +36,7 @@ async def test_every_implemented_method_answers_with_doc_types() -> None:
     document = (
       await client.post(
         f"/bot{TOKEN}/sendDocument",
-        data={"chat_id": "42", "document": "x", "file_name": "справка.pdf"},
+        data={"chat_id": "42", "document": "x", "file_name": "certificate.pdf"},
       )
     ).json()["result"]
     Message.model_validate(document)

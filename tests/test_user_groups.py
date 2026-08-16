@@ -16,20 +16,20 @@ TOKEN = "111111111:AAFakeBotTokenForE2ETests0000000"
 
 def test_send_text_to_unknown_negative_does_not_create_user() -> None:
   net = Network()
-  net.create_user(id=1, first_name="А")
+  net.create_user(id=1, first_name="A")
   with pytest.raises(KeyError):
-    send_text(net, 1, -99, "привет")
+    send_text(net, 1, -99, "hi")
   assert -99 not in net.users
   assert -99 not in net.chats
 
 
 def test_send_text_writes_group_thread_and_emits_card() -> None:
   net = Network()
-  net.create_user(id=1, first_name="А")
-  net.create_user(id=2, first_name="Б")
+  net.create_user(id=1, first_name="A")
+  net.create_user(id=2, first_name="B")
   chat = net.create_chat(type="supergroup", title="S", creator_id=1, member_ids=[2])
   q = net.subscribe()
-  send_text(net, 1, chat.id, "привет")
+  send_text(net, 1, chat.id, "hi")
   assert chat.messages[-1]["from"]["id"] == 1
   assert chat.messages[-1]["chat"] == {"id": chat.id, "type": "supergroup", "title": "S"}
   first = q.get_nowait()
@@ -43,54 +43,54 @@ def test_send_text_writes_group_thread_and_emits_card() -> None:
 
 def test_non_member_send_raises_permission() -> None:
   net = Network()
-  net.create_user(id=1, first_name="А")
-  net.create_user(id=2, first_name="Б")
+  net.create_user(id=1, first_name="A")
+  net.create_user(id=2, first_name="B")
   chat = net.create_chat(type="supergroup", title="S", creator_id=1)
   with pytest.raises(PermissionError):
-    send_text(net, 2, chat.id, "нет")
+    send_text(net, 2, chat.id, "no")
 
 
 async def test_http_creates_supergroup_and_lists_title() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
-    await client.post("/admin/users", json={"id": 2, "first_name": "Б"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/users", json={"id": 2, "first_name": "B"})
     await client.post("/user/sessions", json={"user_id": 1})
     bad = await client.post("/user/chats", json={"type": "private", "title": "x"})
     assert bad.status_code == 400
     created = await client.post(
-      "/user/chats", json={"type": "supergroup", "title": "Команда", "member_ids": [2]}
+      "/user/chats", json={"type": "supergroup", "title": "Team", "member_ids": [2]}
     )
     assert created.status_code == 200
     chat = created.json()["chat"]
     assert chat["type"] == "supergroup"
-    assert chat["title"] == "Команда"
+    assert chat["title"] == "Team"
     assert chat["id"] < 0
     assert "first_name" not in chat
     listed = {c["id"]: c for c in (await client.get("/user/chats")).json()["chats"]}
-    assert listed[chat["id"]]["title"] == "Команда"
+    assert listed[chat["id"]]["title"] == "Team"
     sent = await client.post(
       f"/user/chats/{chat['id']}/messages",
-      json={"text": "привет"},
+      json={"text": "hi"},
     )
-    assert sent.json()["message"]["chat"]["title"] == "Команда"
+    assert sent.json()["message"]["chat"]["title"] == "Team"
     await client.post("/user/sessions", json={"user_id": 2})
     feed = (await client.get(f"/user/chats/{chat['id']}/messages")).json()
-    assert feed["messages"][-1]["text"] == "привет"
-    outsider = await client.post("/admin/users", json={"id": 3, "first_name": "В"})
+    assert feed["messages"][-1]["text"] == "hi"
+    outsider = await client.post("/admin/users", json={"id": 3, "first_name": "C"})
     await client.post("/user/sessions", json={"user_id": 3})
     denied = await client.post(
-      f"/user/chats/{chat['id']}/messages", json={"text": "нет"}
+      f"/user/chats/{chat['id']}/messages", json={"text": "no"}
     )
     assert denied.status_code == 403
-    missing = await client.post("/user/chats/-50/messages", json={"text": "нет"})
+    missing = await client.post("/user/chats/-50/messages", json={"text": "no"})
     assert missing.status_code == 400
 
 
 async def test_sse_group_event_uses_chat_card() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (
       await client.post("/user/chats", json={"type": "supergroup", "title": "S"})
@@ -110,8 +110,8 @@ async def test_sse_group_event_uses_chat_card() -> None:
 async def test_members_crud_and_admin_mirror() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
-    await client.post("/admin/users", json={"id": 2, "first_name": "Б"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/users", json={"id": 2, "first_name": "B"})
     await client.post("/admin/bots", json={"token": TOKEN, "first_name": "Club"})
     created = await client.post(
       "/admin/chats",
@@ -165,8 +165,8 @@ async def test_members_crud_and_admin_mirror() -> None:
 async def test_channel_kicked_cannot_readd_without_unban() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
-    await client.post("/admin/users", json={"id": 2, "first_name": "Б"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/users", json={"id": 2, "first_name": "B"})
     chat = (
       await client.post(
         "/admin/chats",
@@ -184,8 +184,8 @@ async def test_channel_kicked_cannot_readd_without_unban() -> None:
 async def test_creator_in_member_ids_stays_creator() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
-    await client.post("/admin/users", json={"id": 2, "first_name": "Б"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/users", json={"id": 2, "first_name": "B"})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (
       await client.post(
@@ -204,8 +204,8 @@ async def test_creator_in_member_ids_stays_creator() -> None:
 async def test_adding_active_member_again_is_400_and_keeps_rights() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
-    await client.post("/admin/users", json={"id": 2, "first_name": "Б"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/users", json={"id": 2, "first_name": "B"})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (
       await client.post(
@@ -229,8 +229,8 @@ async def test_adding_active_member_again_is_400_and_keeps_rights() -> None:
 async def test_delete_member_without_record_is_400() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
-    await client.post("/admin/users", json={"id": 2, "first_name": "Б"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/users", json={"id": 2, "first_name": "B"})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (
       await client.post("/user/chats", json={"type": "supergroup", "title": "S"})
@@ -244,8 +244,8 @@ async def test_delete_member_without_record_is_400() -> None:
 async def test_left_member_can_be_added_again() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 1, "first_name": "А"})
-    await client.post("/admin/users", json={"id": 2, "first_name": "Б"})
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/users", json={"id": 2, "first_name": "B"})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (
       await client.post(

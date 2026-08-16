@@ -13,8 +13,8 @@ async def test_web_client_has_group_channel_members_and_admin_checkbox() -> None
     css = (await client.get("/style.css")).text
     assert "Telegram" not in html
     assert "telemulator" in html
-    assert "Группа" in html
-    assert "Канал" in html
+    assert "Group" in html
+    assert "Channel" in html
     assert 'id="new-group"' in html
     assert 'id="new-channel"' in html
     assert 'id="members"' in html

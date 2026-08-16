@@ -33,7 +33,7 @@ class Screen:
 class UserClient:
   """One Telegram user talking to the bot through telemulator."""
 
-  def __init__(self, view: BotView, user_id: int, *, first_name: str = "Тест") -> None:
+  def __init__(self, view: BotView, user_id: int, *, first_name: str = "Test") -> None:
     self._view = view
     self.user_id = user_id
     self.chat_id = user_id
@@ -81,18 +81,18 @@ class UserClient:
     button = screen.button(label)
     if button is None:
       raise AssertionError(
-        f"На экране нет кнопки {label!r}. Есть: {screen.inline_labels}. Текст экрана:\n{screen.text}"
+        f"No button {label!r} on the screen. Have: {screen.inline_labels}. Screen text:\n{screen.text}"
       )
     if button.callback_data is None:
-      raise AssertionError(f"Кнопка {label!r} — ссылка ({button.url}), нажимать нечего")
+      raise AssertionError(f"Button {label!r} is a link ({button.url}), nothing to press")
 
     return await self.press_callback(button.callback_data, timeout=timeout)
 
   async def press_callback(self, data: str, *, timeout: float = DEFAULT_TIMEOUT) -> Screen:
-    """Нажать кнопку по callback_data, а не по подписи на текущем экране.
+    """Press a button by callback_data, not by the label on the current screen.
 
-    Telegram не гасит инлайн-клавиатуры старых сообщений, поэтому кнопка из
-    переписки месячной давности остаётся нажимаемой. Проверять это иначе нечем.
+    Telegram does not dismiss inline keyboards on old messages, so a button from
+    a month-old chat remains pressable. There is no other way to test that.
     """
     msgs = self.messages()
     match = next(
@@ -102,7 +102,7 @@ class UserClient:
     if match is None:
       screen = self.screen()
       raise AssertionError(
-        f"На экране нет кнопки {data!r}. Есть: {screen.inline_labels}. Текст экрана:\n{screen.text}"
+        f"No button {data!r} on the screen. Have: {screen.inline_labels}. Screen text:\n{screen.text}"
       )
     before = len(msgs)
     update_id = press_callback(
@@ -114,7 +114,7 @@ class UserClient:
     self,
     *,
     file_id: str = "user-doc-1",
-    file_name: str = "справка.pdf",
+    file_name: str = "certificate.pdf",
     timeout: float = DEFAULT_TIMEOUT,
     expect_reply: bool = True,
   ) -> Screen | None:
@@ -137,18 +137,18 @@ class UserClient:
     journal = self._view.network.journal.calls()[-SILENT_DUMP_CALLS:]
     updates = self._view.network.bots[self._view.token].updates
     return (
-      f"{action}: бот обработал апдейт и не ответил\n"
+      f"{action}: the bot processed the update and did not reply\n"
       f"screen={screen.text!r}\n"
       f"journal={journal!r}\n"
       f"updates={updates!r}"
     )
 
   async def _wait(self, before: int, action: str, timeout: float, update_id: int) -> Screen:
-    """Ждём, что бот дообработал апдейт, а не что в эфире стало тихо.
+    """Wait until the bot has finished the update, not until the wire goes quiet.
 
-    Подтверждение оффсета приходит после возврата обработчика: к этому
-    моменту отправлены все сообщения и записаны все изменения в базе.
-    Пауза в эфире такой гарантии не давала — она её изображала.
+    The offset ack arrives after the handler returns: by then every message is
+    sent and every database change is written. A pause on the wire never gave
+    that guarantee — it only pretended to.
     """
     await self._view.wait_acked(update_id, timeout)
     if len(self.messages()) > before:

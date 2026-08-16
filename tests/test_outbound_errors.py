@@ -23,7 +23,7 @@ async def test_unknown_chat_id_is_400_chat_not_found() -> None:
 async def test_human_without_dialog_is_403_cant_initiate() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
-    await client.post("/admin/users", json={"id": 42, "first_name": "Тест"})
+    await client.post("/admin/users", json={"id": 42, "first_name": "Test"})
     await client.post("/admin/bots", json={"token": TOKEN})
     r = await client.post(f"/bot{TOKEN}/sendMessage", data={"chat_id": "42", "text": "x"})
     assert r.status_code == 403

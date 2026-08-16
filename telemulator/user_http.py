@@ -255,7 +255,7 @@ async def events(request: Request) -> StreamingResponse:
           continue
         yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
     finally:
-      # После reset очередь уже на новой сети; captured `net` пустой.
+      # After reset the queue already belongs to the new network; captured `net` is empty.
       current = _net(request)
       current.unsubscribe(queue)
       if current is not net:

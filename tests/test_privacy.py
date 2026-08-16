@@ -12,7 +12,7 @@ ALERT = "222222222:AAFakeAlertTokenForE2ETests0000"
 
 def _group_with_two_privacy_bots() -> tuple[Network, int]:
   net = Network()
-  net.create_user(id=1, first_name="А")
+  net.create_user(id=1, first_name="A")
   net.create_bot(token=TOKEN, first_name="Club", username="clubbot")
   net.create_bot(token=ALERT, first_name="Alert", username="alertbot")
   chat = net.create_chat(type="supergroup", title="S", creator_id=1)
@@ -48,9 +48,9 @@ def test_bare_cmd_goes_to_last_bot_id_only() -> None:
 
 def test_cmd_in_the_middle_and_plain_text_and_mention_are_silent() -> None:
   net, chat_id = _group_with_two_privacy_bots()
-  send_text(net, 1, chat_id, "смотри /start@clubbot")
-  send_text(net, 1, chat_id, "привет")
-  send_text(net, 1, chat_id, "@clubbot привет")
+  send_text(net, 1, chat_id, "see /start@clubbot")
+  send_text(net, 1, chat_id, "hi")
+  send_text(net, 1, chat_id, "@clubbot hi")
   assert _texts(net, TOKEN) == []
   assert _texts(net, ALERT) == []
 
@@ -63,7 +63,7 @@ def test_reply_to_bot_beats_cmd_at_other_among_step3() -> None:
       "message_id": 50,
       "from": dict(net.users[111111111]),
       "chat": {"id": chat.id, "type": "supergroup", "title": "S"},
-      "text": "from demo",
+      "text": "from club",
     }
   )
   send_text(net, 1, chat_id, "/start@alertbot", reply_to_message_id=50)
@@ -79,9 +79,9 @@ def test_admin_bot_and_privacy_off_still_see_step3_message() -> None:
   )
   net.bots["333333333:tok"].updates.clear()
   net.chats[chat_id].privacy_at_join[222222222] = False
-  send_text(net, 1, chat_id, "болтовня")
-  assert "болтовня" in _texts(net, "333333333:tok")
-  assert "болтовня" in _texts(net, ALERT)
+  send_text(net, 1, chat_id, "chatter")
+  assert "chatter" in _texts(net, "333333333:tok")
+  assert "chatter" in _texts(net, ALERT)
   assert _texts(net, TOKEN) == []
 
 
@@ -96,7 +96,7 @@ def test_other_bot_messages_are_not_delivered() -> None:
       "message_id": 9,
       "from": dict(net.users[111111111]),
       "chat": {"id": chat.id, "type": chat.type, "title": chat.title},
-      "text": "секрет бота",
+      "text": "bot secret",
     },
   )
   assert _texts(net, ALERT) == []
@@ -105,8 +105,8 @@ def test_other_bot_messages_are_not_delivered() -> None:
 
 def test_service_reaches_privacy_bot_while_in_chat() -> None:
   net = Network()
-  net.create_user(id=1, first_name="А")
-  net.create_user(id=2, first_name="Б")
+  net.create_user(id=1, first_name="A")
+  net.create_user(id=2, first_name="B")
   net.create_bot(token=TOKEN, first_name="Club", username="clubbot")
   chat = net.create_chat(type="supergroup", title="S", creator_id=1)
   net.add_member(chat.id, 111111111, actor_id=1)
@@ -117,13 +117,13 @@ def test_service_reaches_privacy_bot_while_in_chat() -> None:
 
 def test_privacy_post_does_not_rewrite_existing_joins() -> None:
   net = Network()
-  net.create_user(id=1, first_name="А")
+  net.create_user(id=1, first_name="A")
   net.create_bot(token=TOKEN, first_name="Club", username="clubbot")
   chat = net.create_chat(type="supergroup", title="S", creator_id=1)
   net.add_member(chat.id, 111111111, actor_id=1)
   net.bots[TOKEN].privacy_mode = False
-  send_text(net, 1, chat.id, "после смены без rejoin")
-  assert [u for u in net.bots[TOKEN].updates if u.get("message", {}).get("text") == "после смены без rejoin"] == []
+  send_text(net, 1, chat.id, "after change without rejoin")
+  assert [u for u in net.bots[TOKEN].updates if u.get("message", {}).get("text") == "after change without rejoin"] == []
 
 
 async def test_admin_privacy_and_get_me_flags() -> None:
@@ -143,18 +143,18 @@ async def test_admin_privacy_and_get_me_flags() -> None:
 
 def test_readd_picks_up_new_privacy_mode() -> None:
   net = Network()
-  net.create_user(id=1, first_name="А")
+  net.create_user(id=1, first_name="A")
   net.create_bot(token=TOKEN, first_name="Club", username="clubbot")
   chat = net.create_chat(type="supergroup", title="S", creator_id=1)
   net.add_member(chat.id, 111111111, actor_id=1)
-  # Чужой remove в супергруппе даёт kicked — без unban add_member падает (Task 2).
+  # A third-party remove in a supergroup yields kicked — without unban, add_member fails (Task 2).
   net.remove_member(chat.id, 111111111, actor_id=111111111)
   net.bots[TOKEN].privacy_mode = False
   net.add_member(chat.id, 111111111, actor_id=1)
   assert chat.privacy_at_join[111111111] is False
   net.bots[TOKEN].updates.clear()
-  send_text(net, 1, chat.id, "болтовня")
-  assert any(u.get("message", {}).get("text") == "болтовня" for u in net.bots[TOKEN].updates)
+  send_text(net, 1, chat.id, "chatter")
+  assert any(u.get("message", {}).get("text") == "chatter" for u in net.bots[TOKEN].updates)
 
 
 def test_dump_load_reset_preserve_privacy_mode() -> None:

@@ -30,7 +30,7 @@ def _persist(app: FastAPI) -> None:
   store.save(app.state.network.dump())
 
 
-# BaseHTTPMiddleware буферизует тело ответа и стопорит SSE при соседнем запросе.
+# BaseHTTPMiddleware buffers the response body and stalls SSE when another request is in flight.
 class _PersistAfterMutation:
   def __init__(self, app: Callable[..., Awaitable[None]]) -> None:
     self.app = app
@@ -65,7 +65,7 @@ def create_app(
   limits_profile: str | None = None,
   sqlite_path: str | None = None,
 ) -> FastAPI:
-  """Fake Telegram Bot API поверх одной сети."""
+  """Fake Telegram Bot API over a single network."""
   app = FastAPI(title="telemulator")
   app.state.network = network or Network()
   app.state.limiter = limiter_for_profile(limits_profile)

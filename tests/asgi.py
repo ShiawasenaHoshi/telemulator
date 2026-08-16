@@ -6,11 +6,12 @@ from starlette.requests import Request
 
 
 def session_request(app: Any, token: str) -> Request:
-  """Скоуп ASGI для прямого вызова `events()`.
+  """ASGI scope for calling `events()` directly.
 
-  httpx ASGITransport ждёт конца стрима, поэтому SSE проверяется вызовом
-  хендлера мимо транспорта. Скоуп собран руками — один на все модули, иначе
-  очередной обязательный ключ Starlette правится только в одной копии.
+  httpx ASGITransport waits for the stream to end, so SSE is checked by
+  invoking the handler past the transport. The scope is assembled by hand —
+  one copy for every module, otherwise the next required Starlette key is
+  fixed in only one place.
   """
 
   async def receive() -> dict[str, Any]:

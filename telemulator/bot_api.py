@@ -70,9 +70,9 @@ IMPLEMENTED = frozenset(
   }
 )
 
-# Чтения: ответ не меняет сеть, персистить после них нечего. getUpdates двигает
-# acked, но это курсор бота, а не состояние сети: после рестарта песочницы он
-# восстановится первым же offset.
+# Reads: the response does not change the network, so there is nothing to persist
+# after them. getUpdates advances acked, but that is the bot's cursor, not network
+# state: after a sandbox restart it will recover on the first offset.
 READ_ONLY = frozenset(
   {
     "getMe",
@@ -255,7 +255,7 @@ def _get_chat(network: Network, token: str, params: dict[str, Any]) -> Response:
 
 
 def _get_chat_member(network: Network, token: str, params: dict[str, Any]) -> Response:
-  # Не 403-first: left/kicked self — 200, нет записи в members — 400 и для self.
+  # Not 403-first: left/kicked self is 200; no members record is 400 even for self.
   chat_id = int(params["chat_id"])
   user_id = int(params["user_id"])
   bot_id = network.bots[token].user["id"]
@@ -407,7 +407,7 @@ def _markup_obj(raw: Any) -> dict[str, Any] | None:
 
 
 def _public_message(stored: dict[str, Any]) -> dict[str, Any]:
-  """Bot API Message: parse_mode и reply-клавиатура — внутренний снимок, не ответ."""
+  """Bot API Message: parse_mode and the reply keyboard are an internal snapshot, not the response."""
   public = {key: value for key, value in stored.items() if key != "parse_mode"}
   markup = public.get("reply_markup")
   if isinstance(markup, dict) and "inline_keyboard" not in markup:
@@ -498,7 +498,7 @@ def _outbound_message(
     "from": _from_bot(network.bots[token]),
     **fields,
   }
-  # Telegram Message не несёт parse_mode; оставляем для markup_guard / BotView.raw.
+  # Telegram Message does not carry parse_mode; we keep it for markup_guard / BotView.raw.
   if params.get("parse_mode"):
     message["parse_mode"] = params["parse_mode"]
   markup = _markup_obj(params.get("reply_markup"))
@@ -615,7 +615,7 @@ def _send_media(
   caption = str(params.get("caption") or "")
   if caption:
     fields["caption"] = caption
-  # file_id = kind-message_id; media в fields до emit, иначе SSE без вложений.
+  # file_id = kind-message_id; put media in fields before emit, else SSE has no attachments.
   chat_id = int(params["chat_id"])
   bot_id = network.bots[token].user["id"]
   record = network.chats.get(chat_id)
@@ -633,8 +633,8 @@ def _send_media(
     fields[kind] = document
   response = _outbound_message(network, token, params, fields, limiter=limiter)
   if response.status_code == 200:
-    # Байты регистрируем только за доставленным сообщением: отбитая отправка
-    # не должна оставлять скачиваемый файл ни в files, ни в снимке.
+    # Register bytes only for a delivered message: a rejected send must not
+    # leave a downloadable file in files or in the snapshot.
     network.files.setdefault(f"{file_id}.bin", b"e2e-file-content")
   return response
 
@@ -711,7 +711,7 @@ async def _get_updates(network: Network, token: str, params: dict[str, Any]) -> 
     updates = await task
   except asyncio.CancelledError:
     if task not in runtime.preempted:
-      raise  # гасят сервер или ушёл клиент — это не конфликт
+      raise  # shutting down the server or the client left — that is not a conflict
     runtime.preempted.discard(task)
     return _err(*bot_error(409, CONFLICT_GETUPDATES))
   finally:
@@ -767,8 +767,8 @@ async def call(token: str, method: str, request: Request) -> Response:
     else:
       response = HANDLERS[method](network, token, params)
   except asyncio.CancelledError:
-    # 499 как у nginx: клиент закрыл соединение, ответа не было. Без этой
-    # ветки оборванный long-poll исчезает из журнала целиком.
+    # 499 like nginx: the client closed the connection, there was no response.
+    # Without this branch a dropped long-poll vanishes from the journal entirely.
     _journal(network, method, token, kind, journal_params,
              status=499, response={"ok": False, "description": "client disconnected"})
     raise

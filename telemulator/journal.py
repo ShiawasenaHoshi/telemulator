@@ -33,7 +33,7 @@ HOLES_LIMIT = 200
 class Journal:
   def __init__(self) -> None:
     self._calls: deque[JournalRecord] = deque(maxlen=CALLS_LIMIT)
-    # Отдельная очередь: дыра эмулятора не должна вытесняться шумом getUpdates.
+    # Separate queue: an emulator hole must not be pushed out by getUpdates noise.
     self._holes: deque[JournalRecord] = deque(maxlen=HOLES_LIMIT)
 
   def record(

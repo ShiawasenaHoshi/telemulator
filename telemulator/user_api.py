@@ -34,7 +34,7 @@ def message_for_viewer(
 
 
 def _ensure_user(
-  network: Network, user_id: int, *, first_name: str = "Тест"
+  network: Network, user_id: int, *, first_name: str = "Test"
 ) -> dict[str, Any]:
   existing = network.users.get(user_id)
   if existing is None:
@@ -84,7 +84,7 @@ def send_text(
         raise PermissionError("no post")
     card = chat_card(chat)
     msg: dict[str, Any] = {"chat": card, "text": text}
-    # Пост канала подписан каналом, а не человеком (дока: channel_post).
+    # A channel post is signed by the channel, not a person (docs: channel_post).
     if chat.type == "channel":
       msg["sender_chat"] = card
     else:
@@ -111,7 +111,7 @@ def send_text(
   token = _token_for_bot(network, peer_id)
   if token is None:
     if peer_id not in network.users:
-      network.create_user(id=peer_id, first_name="Тест")
+      network.create_user(id=peer_id, first_name="Test")
     network.open_private_users(user_id, peer_id)
     network.append_message(
       peer_id,
@@ -185,8 +185,8 @@ def _press(
   if peer_id is not None:
     thread = network.thread_for(user_id, peer_id)
   else:
-    # e2e: chat_id — id человека, тред (user_id, bot_id). Диалогов у человека
-    # может быть несколько, поэтому ищем тред с этим message_id, а не первый.
+    # e2e: chat_id is the person's id, thread is (user_id, bot_id). A person
+    # may have several dialogs, so look up the thread with this message_id, not the first one.
     candidates = [
       (owner_id, messages)
       for (cid, owner_id), messages in network.bot_chats.items()
@@ -251,7 +251,7 @@ def send_document(
   peer_id: int,
   *,
   file_id: str = "user-doc-1",
-  file_name: str = "справка.pdf",
+  file_name: str = "certificate.pdf",
 ) -> int:
   user = _ensure_user(network, user_id)
   token = _token_for_bot(network, peer_id)

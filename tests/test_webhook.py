@@ -94,7 +94,7 @@ async def test_webhook_non_2xx_records_last_error() -> None:
 
 
 async def test_client_cancel_is_not_a_conflict() -> None:
-  """Отмена запроса — не 409: иначе остановка сервера превращается в конфликт."""
+  """Cancelling the request is not a 409: otherwise stopping the server turns into a conflict."""
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
     await client.post("/admin/bots", json={"token": TOKEN})
@@ -109,7 +109,7 @@ async def test_drain_webhooks_leaves_nothing_pending() -> None:
   app = create_app()
   net = app.state.network
   net.create_bot(token=TOKEN)
-  net.bots[TOKEN].webhook_url = "http://127.0.0.1:1/hook"  # соединения нет — упадёт быстро
+  net.bots[TOKEN].webhook_url = "http://127.0.0.1:1/hook"  # no connection — fails fast
   net.push_update(TOKEN, {"message": {"text": "hi"}})
   await net.drain_webhooks()
   assert net._webhook_tasks == set()

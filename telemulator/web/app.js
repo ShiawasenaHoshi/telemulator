@@ -11,9 +11,9 @@ function saveAccounts() {
   localStorage.setItem(STORE, JSON.stringify(accounts));
 }
 
-// Битое значение в хранилище не должно ронять клиент целиком: без catch
-// исключение летит до первой отрисовки и вкладка остаётся пустой, вместе
-// с debug-консолью, — чинить пришлось бы руками через devtools.
+// A corrupt value in storage must not take the whole client down: without catch
+// the exception flies before the first paint and the tab stays blank, debug
+// console included — you would have to fix it by hand in devtools.
 function savedAccounts() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORE) || "[]");
@@ -55,7 +55,7 @@ function formError(form, err) {
       const body = JSON.parse(raw.slice(brace));
       if (typeof body.detail === "string") text = body.detail;
     } catch {
-      // FastAPI отдаёт JSON; если нет — оставляем «400 {…}» как есть.
+      // FastAPI returns JSON; if not, leave "400 {…}" as-is.
     }
   }
   el.textContent = text;
@@ -74,7 +74,7 @@ function renderAccounts() {
   const sel = document.getElementById("account");
   sel.replaceChildren();
   for (const a of accounts) {
-    // Имя приходит от оператора — только textContent, как везде в файле.
+    // The name comes from the operator — textContent only, as everywhere in this file.
     const opt = new Option(`${a.first_name} (${a.id})`, String(a.id));
     opt.selected = current !== null && a.id === current.id;
     sel.append(opt);
@@ -107,7 +107,7 @@ function bubble(msg, myId) {
   if (msg.document) {
     const doc = document.createElement("div");
     doc.className = "doc";
-    doc.textContent = msg.document.file_name || "файл";
+    doc.textContent = msg.document.file_name || "file";
     el.appendChild(doc);
   }
   const markup = (msg.reply_markup && msg.reply_markup.inline_keyboard) || [];
@@ -176,12 +176,12 @@ async function openChat(chat) {
   ul.replaceChildren();
   for (const m of members.members) {
     const li = document.createElement("li");
-    const role = m.status === "creator" ? "creator" : m.status === "administrator" ? "админ" : "участник";
+    const role = m.status === "creator" ? "creator" : m.status === "administrator" ? "admin" : "member";
     li.textContent = (m.user.first_name || m.user.id) + " · " + role;
     if (m.user.id !== current.id) {
       const kick = document.createElement("button");
       kick.type = "button";
-      kick.textContent = "Выгнать";
+      kick.textContent = "Kick";
       kick.addEventListener("click", async () => {
         await withForm(document.getElementById("add-member"), async () => {
           await api("/user/chats/" + chat.id + "/members/" + m.user.id, { method: "DELETE" });
@@ -256,7 +256,7 @@ function resetOpenChat() {
   openChatObj = null;
   pending.clear();
   document.getElementById("feed").innerHTML = "";
-  document.getElementById("chat-head").textContent = "Выберите чат";
+  document.getElementById("chat-head").textContent = "Select a chat";
   document.getElementById("members").hidden = true;
   document.getElementById("composer").hidden = false;
   renderReply(null);
@@ -299,8 +299,8 @@ async function loadJournal() {
   const data = await api("/admin/journal");
   document.getElementById("debug-calls").innerHTML = "";
   document.getElementById("debug-holes").innerHTML = "";
-  // Дыра лежит в обеих очередях журнала: и в calls, и в unimplemented.
-  // Дважды её не рисуем, но и не теряем — в unimplemented история глубже.
+  // A hole sits in both journal queues: calls and unimplemented.
+  // We do not draw it twice, and we do not drop it — unimplemented keeps a deeper history.
   for (const rec of data.calls) {
     if (rec.kind !== "unimplemented") renderJournal(rec);
   }
@@ -319,8 +319,8 @@ function renderJournal(record) {
   }
   const box = document.getElementById(hole ? "debug-holes" : "debug-calls");
   box.prepend(row);
-  // Журнал на сервере ограничен 500 записями, DOM — ничем: за час опроса
-  // вкладка набирает тысячи строк getUpdates и начинает тормозить.
+  // The journal on the server is capped at 500 records, the DOM is not: an hour
+  // of polling fills the tab with thousands of getUpdates rows and it starts to lag.
   while (box.childElementCount > DEBUG_ROWS) box.lastElementChild.remove();
 }
 
@@ -433,8 +433,8 @@ document.getElementById("composer").addEventListener("submit", async (e) => {
   }
 });
 
-// Сессия живёт в куке на сервере, список заведённых людей — только здесь,
-// поэтому после F5 аккаунты поднимаем из localStorage, а текущего — из /user/me.
+// The session lives in a cookie on the server, the list of created people only here,
+// so after F5 we restore accounts from localStorage and the current one from /user/me.
 async function restore() {
   accounts.push(...savedAccounts());
   let me = null;

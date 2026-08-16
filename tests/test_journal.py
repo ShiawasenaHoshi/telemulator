@@ -28,7 +28,7 @@ def test_calls_are_capped() -> None:
 
 
 def test_holes_survive_a_flood_of_routine_calls() -> None:
-  """Журнал дыр — смысл эмулятора; polling не должен его вытеснять."""
+  """The holes journal is the emulator's point; polling must not push it out."""
   journal = Journal()
   journal.record("sendPoll", TOKEN, "unimplemented")
   for _ in range(CALLS_LIMIT + 50):

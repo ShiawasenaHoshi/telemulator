@@ -24,7 +24,7 @@ async def client():
 def _open_private(client, token: str = TOKEN, user_id: int = 42) -> None:
   net = client.app.state.network
   if user_id not in net.users:
-    net.create_user(id=user_id, first_name="Тест")
+    net.create_user(id=user_id, first_name="Test")
   if net.bot_by_token(token) is None:
     net.create_bot(token=token)
   net.ensure_private_chat(user_id, int(token.split(":")[0]))
@@ -40,71 +40,71 @@ async def test_get_me_returns_bot_user(client) -> None:
 
 async def test_send_message_is_recorded_and_returns_message(client) -> None:
   net = client.app.state.network
-  net.create_user(id=42, first_name="Тест")
+  net.create_user(id=42, first_name="Test")
   net.create_bot(token=TOKEN)
   net.ensure_private_chat(42, 111111111)
   response = await client.post(
     f"/bot{TOKEN}/sendMessage",
-    data={"chat_id": "42", "text": "Привет"},
+    data={"chat_id": "42", "text": "Hello"},
   )
   payload = response.json()
   assert payload["ok"] is True
   result = payload["result"]
-  assert result["text"] == "Привет"
+  assert result["text"] == "Hello"
   assert result["from"]["is_bot"] is True
   assert result["from"]["id"] == 111111111
   assert set(result) == {"message_id", "date", "chat", "text", "from"}
-  assert [m["text"] for m in net.bot_chats[(42, 111111111)]] == ["Привет"]
+  assert [m["text"] for m in net.bot_chats[(42, 111111111)]] == ["Hello"]
 
 
 async def test_tokens_do_not_share_state(client) -> None:
   _open_private(client, TOKEN, 42)
-  await client.post(f"/bot{TOKEN}/sendMessage", data={"chat_id": "42", "text": "боту"})
+  await client.post(f"/bot{TOKEN}/sendMessage", data={"chat_id": "42", "text": "to-bot"})
   net = client.app.state.network
   net.create_bot(token=ALERT)
   net.ensure_outbound_chat(-100123, 222222222)
-  await client.post(f"/bot{ALERT}/sendMessage", data={"chat_id": "-100123", "text": "алерт"})
-  assert [m["text"] for m in net.bot_chats[(42, 111111111)]] == ["боту"]
-  assert [m["text"] for m in net.bot_chats[(-100123, 222222222)]] == ["алерт"]
+  await client.post(f"/bot{ALERT}/sendMessage", data={"chat_id": "-100123", "text": "alert"})
+  assert [m["text"] for m in net.bot_chats[(42, 111111111)]] == ["to-bot"]
+  assert [m["text"] for m in net.bot_chats[(-100123, 222222222)]] == ["alert"]
 
 
 async def test_inline_keyboard_is_parsed_into_buttons(client) -> None:
   _open_private(client)
-  markup = {"inline_keyboard": [[{"text": "Заказать", "callback_data": "svc:7:order"}]]}
+  markup = {"inline_keyboard": [[{"text": "Order", "callback_data": "svc:7:order"}]]}
   await client.post(
     f"/bot{TOKEN}/sendMessage",
-    data={"chat_id": "42", "text": "Карточка", "reply_markup": json.dumps(markup)},
+    data={"chat_id": "42", "text": "Card", "reply_markup": json.dumps(markup)},
   )
   msg = client.app.state.network.bot_chats[(42, 111111111)][-1]
-  assert msg["reply_markup"]["inline_keyboard"][0][0]["text"] == "Заказать"
+  assert msg["reply_markup"]["inline_keyboard"][0][0]["text"] == "Order"
   assert msg["reply_markup"]["inline_keyboard"][0][0]["callback_data"] == "svc:7:order"
 
 
 async def test_reply_keyboard_is_parsed(client) -> None:
   _open_private(client)
-  markup = {"keyboard": [[{"text": "Расчёты КМ"}]], "resize_keyboard": True}
+  markup = {"keyboard": [[{"text": "KM estimates"}]], "resize_keyboard": True}
   await client.post(
     f"/bot{TOKEN}/sendMessage",
-    data={"chat_id": "42", "text": "Меню", "reply_markup": json.dumps(markup)},
+    data={"chat_id": "42", "text": "Menu", "reply_markup": json.dumps(markup)},
   )
   net = client.app.state.network
   msg = net.bot_chats[(42, 111111111)][-1]
-  assert msg["reply_markup"]["keyboard"][0][0]["text"] == "Расчёты КМ"
-  assert net.reply_keyboard(42, 111111111) == [["Расчёты КМ"]]
+  assert msg["reply_markup"]["keyboard"][0][0]["text"] == "KM estimates"
+  assert net.reply_keyboard(42, 111111111) == [["KM estimates"]]
 
 
 async def test_send_message_result_omits_reply_keyboard(client) -> None:
-  """Message.reply_markup в Bot API — только InlineKeyboardMarkup."""
+  """Bot API Message.reply_markup is InlineKeyboardMarkup only."""
   _open_private(client)
-  markup = {"keyboard": [[{"text": "Расчёты КМ"}]], "resize_keyboard": True}
+  markup = {"keyboard": [[{"text": "KM estimates"}]], "resize_keyboard": True}
   response = await client.post(
     f"/bot{TOKEN}/sendMessage",
-    data={"chat_id": "42", "text": "Меню", "reply_markup": json.dumps(markup)},
+    data={"chat_id": "42", "text": "Menu", "reply_markup": json.dumps(markup)},
   )
   result = response.json()["result"]
   assert "reply_markup" not in result
   stored = client.app.state.network.bot_chats[(42, 111111111)][-1]
-  assert stored["reply_markup"]["keyboard"][0][0]["text"] == "Расчёты КМ"
+  assert stored["reply_markup"]["keyboard"][0][0]["text"] == "KM estimates"
 
 
 async def test_send_message_result_omits_keyboard_remove(client) -> None:
@@ -113,7 +113,7 @@ async def test_send_message_result_omits_keyboard_remove(client) -> None:
     f"/bot{TOKEN}/sendMessage",
     data={
       "chat_id": "42",
-      "text": "форма",
+      "text": "form",
       "reply_markup": json.dumps({"remove_keyboard": True}),
     },
   )
@@ -155,9 +155,9 @@ async def test_bad_token_is_unauthorized(client) -> None:
 
 
 async def test_bot_cannot_initiate_private_without_dialog(client) -> None:
-  client.app.state.network.create_user(id=42, first_name="Тест")
+  client.app.state.network.create_user(id=42, first_name="Test")
   response = await client.post(
-    f"/bot{TOKEN}/sendMessage", data={"chat_id": "42", "text": "Привет"}
+    f"/bot{TOKEN}/sendMessage", data={"chat_id": "42", "text": "Hello"}
   )
   assert response.status_code == 403
   assert response.json()["description"] == CANT_INITIATE
@@ -172,15 +172,15 @@ async def test_inbound_private_update_opens_dialog_for_reply(client) -> None:
       "message": {
         "text": "/start",
         "chat": {"id": 42, "type": "private"},
-        "from": {"id": 42, "is_bot": False, "first_name": "Василий", "username": "bridge_user"},
+        "from": {"id": 42, "is_bot": False, "first_name": "Vasily", "username": "bridge_user"},
       }
     },
   )
   response = await client.post(
-    f"/bot{TOKEN}/sendMessage", data={"chat_id": "42", "text": "Привет"}
+    f"/bot{TOKEN}/sendMessage", data={"chat_id": "42", "text": "Hello"}
   )
   assert response.status_code == 200
-  assert response.json()["result"]["text"] == "Привет"
+  assert response.json()["result"]["text"] == "Hello"
   assert net.users[42]["username"] == "bridge_user"
 
 
@@ -188,7 +188,7 @@ async def test_edit_missing_message_is_canonical(client) -> None:
   _open_private(client)
   response = await client.post(
     f"/bot{TOKEN}/editMessageText",
-    data={"chat_id": "42", "message_id": "1", "text": "нет"},
+    data={"chat_id": "42", "message_id": "1", "text": "no"},
   )
   assert response.status_code == 400
   assert response.json()["description"] == MESSAGE_TO_EDIT
@@ -267,8 +267,8 @@ async def test_web_client_restores_the_session_on_reload(client) -> None:
   js = (await client.get("/app.js")).text
   assert "/user/me" in js
   assert "localStorage" in js
-  # Разбор хранилища идёт через savedAccounts: битое значение не должно
-  # ронять restore() до первой отрисовки и оставлять пустую вкладку.
+  # Storage is parsed via savedAccounts: a corrupt value must not crash
+  # restore() before the first paint and leave a blank tab.
   assert "accounts.push(...savedAccounts())" in js
 
 
@@ -280,7 +280,7 @@ async def test_web_client_tracks_spinners_per_query(client) -> None:
 
 
 async def test_journal_hole_is_listed_in_both_admin_lists(client) -> None:
-  """Консоль обязана вычитать пересечение: иначе одна дыра — две строки."""
+  """The console must subtract the intersection: otherwise one hole is two rows."""
   await client.post(f"/bot{TOKEN}/sendPoll", data={"chat_id": "1"})
   journal = (await client.get("/admin/journal")).json()
   assert [r["method"] for r in journal["calls"]] == ["sendPoll"]

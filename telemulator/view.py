@@ -55,7 +55,7 @@ def _as_markup_json(markup: Any) -> str | None:
 
 
 class BotView:
-  """Срез сети глазами одного бота: исходящие сообщения, очередь и ack."""
+  """The network as one bot sees it: outgoing messages, queue and ack."""
 
   def __init__(self, network: Network, token: str) -> None:
     self.network = network
