@@ -99,6 +99,16 @@ class BotView:
     thread = self.network.bot_chats.get((chat_id, self.bot_id), [])
     return self._bot_thread_messages(chat_id, thread)
 
+  def open_dialog(self, user_id: int, *, first_name: str = "Test") -> None:
+    """Seed a private chat as if the user had pressed /start.
+
+    Not a Bot API method: real Telegram has no way for a bot to open a
+    dialog. Test sugar, and named as such.
+    """
+    if user_id not in self.network.users:
+      self.network.create_user(id=user_id, first_name=first_name)
+    self.network.ensure_private_chat(user_id, self.bot_id)
+
   @property
   def messages(self) -> list[SentMessage]:
     bot_id = self.bot_id
