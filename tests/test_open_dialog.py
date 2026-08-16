@@ -32,7 +32,7 @@ def test_open_dialog_lets_the_bot_write_first() -> None:
 
   # Without an opened dialog the Bot API answers 403 "can't initiate
   # conversation"; the private chat is what makes writing first legal.
-  assert (900003, view.bot_id) in net.bot_chats or net.users[900003] is not None
+  assert (900003, view.bot_id) in net.bot_chats
 
 
 def test_open_dialog_is_idempotent() -> None:
