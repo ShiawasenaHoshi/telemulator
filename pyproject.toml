@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "telemulator"
+version = "0.1.0"
+description = "A fake Telegram network: Bot API, User API and Admin API over one truth"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+    "fastapi>=0.110",
+    "httpx>=0.27",
+    "python-multipart>=0.0.9",
+    "uvicorn[standard]>=0.27",
+]
+
+[project.optional-dependencies]
+# aiogram is a test-only dependency: the contract suite feeds our JSON to a real
+# bot framework, which is the whole point of the emulator.
+dev = [
+    "aiogram>=3.4",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "pytest-xdist>=3.6",
+]
+
+[tool.setuptools.packages.find]
+include = ["telemulator*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+# "tests" is on the path so helper modules next to the tests import by bare
+# name; "." is what lets test_catalog.py find telemulator/catalog.json.
+pythonpath = [".", "tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["telemulator"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "\\.\\.\\.",
+    "def __repr__",
+]
