@@ -13,7 +13,7 @@ Not affiliated with Telegram.
 
 ## Install
 
-    pip install "telemulator @ git+https://github.com/ShiawasenaHoshi/telemulator.git@v0.1.0"
+    pip install "telemulator @ git+https://github.com/ShiawasenaHoshi/telemulator.git@v0.2.0"
 
 Or run the image:
 
