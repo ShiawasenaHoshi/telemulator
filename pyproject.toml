@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "telemulator"
-version = "0.2.0"
+version = "0.2.1"
 description = "A fake Telegram network: Bot API, User API and Admin API over one truth"
 readme = "README.md"
 requires-python = ">=3.12"

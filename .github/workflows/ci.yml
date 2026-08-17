@@ -9,7 +9,11 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE: ghcr.io/shiawasenahoshi/telemulator
+  # Nested under the repository, like ghcr.io/<owner>/<repo>/<image>. The flat
+  # ghcr.io/<owner>/telemulator name is a tombstone: it belongs to a package
+  # left behind by an earlier, deleted repository, and no workflow here can
+  # write to it.
+  IMAGE: ghcr.io/${{ github.repository }}/emulator
   PYTHON_VERSION: "3.12"
 
 jobs:
