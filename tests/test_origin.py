@@ -1,15 +1,30 @@
 from __future__ import annotations
 
+import base64
 import re
 from pathlib import Path
 
-# The emulator is its own product. These words are traces of where it grew up
-# and of the project it was extracted from; none of them belong in the code.
-STOP_WORDS = ("origin", "tgmock", "club", "payments", "messaging-vendor", "redacted", "org")
-STOP_RE = re.compile("|".join(STOP_WORDS), re.IGNORECASE)
+# Names that must never appear anywhere in this repo, including docs/: the
+# private project this emulator was extracted from, its vendors, and a
+# person's name. Base64-encoded so this guard doesn't itself republish the
+# names it exists to keep out.
+_IDENTITY_WORDS_B64 = (
+    "bmF0a3U=",
+    "d2F5Zm9ycGF5",
+    "c21hcnRzZW5kZXI=",
+    "0YbQuC3QutC70YPQsQ==",
+    "0LrRg9C90LjQvQ==",
+)
+IDENTITY_WORDS = tuple(base64.b64decode(w).decode("utf-8") for w in _IDENTITY_WORDS_B64)
+IDENTITY_RE = re.compile("|".join(re.escape(w) for w in IDENTITY_WORDS), re.IGNORECASE)
 
-# docs/ is an as-is import from a private repository: the history it records is legitimate.
-SKIP_DIRS = {".git", ".venv", "docs", "__pycache__", ".pytest_cache", "build", "dist"}
+# The emulator's own former working name, and a generic word tied to the
+# origin project's domain. Fine in docs/ as historical record; must not creep
+# into the shipped product.
+CODE_WORDS = ("tgmock", "club")
+CODE_RE = re.compile("|".join(re.escape(w) for w in CODE_WORDS), re.IGNORECASE)
+
+SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", "build", "dist"}
 TRACKED_SUFFIXES = {".py", ".js", ".html", ".css", ".json", ".toml", ".md", ".yml", ".yaml"}
 
 
@@ -29,7 +44,8 @@ def test_no_traces_of_the_original_project() -> None:
   for path in _tracked_files():
     if path.name == "test_origin.py":
       continue
+    in_docs = "docs" in path.relative_to(Path(__file__).resolve().parents[1]).parts
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-      if STOP_RE.search(line):
+      if IDENTITY_RE.search(line) or (not in_docs and CODE_RE.search(line)):
         offenders.append(f"{path}:{number}: {line.strip()}")
   assert offenders == [], "traces of the original project:\n" + "\n".join(offenders)
