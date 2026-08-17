@@ -17,7 +17,7 @@ Not affiliated with Telegram.
 
 Or run the image:
 
-    docker run -p 8081:8081 ghcr.io/shiawasenahoshi/telemulator:0.1.0
+    docker run -p 8081:8081 ghcr.io/shiawasenahoshi/telemulator:0.2.0
 
 ## Use it from a test
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
-from telemulator.user_api import press_callback, send_document, send_text
+from telemulator.user_api import press_callback, send_document, send_photo, send_text
 from telemulator.view import BotView, SentMessage
 
 DEFAULT_TIMEOUT = 10.0
@@ -131,6 +131,26 @@ class UserClient:
       await asyncio.sleep(0.5)
       return None
     return await self._wait(before, "send_document()", timeout, update_id)
+
+  async def send_photo(
+    self,
+    *,
+    file_id: str = "user-photo-1",
+    timeout: float = DEFAULT_TIMEOUT,
+    expect_reply: bool = True,
+  ) -> Screen | None:
+    """User sends a photo; the bot will fetch it back via getFile."""
+    before = len(self.messages())
+    update_id = send_photo(
+      self._view.network,
+      self.user_id,
+      self._view.bot_id,
+      file_id=file_id,
+    )
+    if not expect_reply:
+      await asyncio.sleep(0.5)
+      return None
+    return await self._wait(before, "send_photo()", timeout, update_id)
 
   def _silent_dump(self, action: str) -> str:
     screen = self.screen()

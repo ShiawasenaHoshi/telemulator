@@ -273,3 +273,34 @@ def send_document(
     },
   )
   return network.push_update(token, {"message": message})
+
+
+def send_photo(
+  network: Network,
+  user_id: int,
+  peer_id: int,
+  *,
+  file_id: str = "user-photo-1",
+) -> int:
+  user = _ensure_user(network, user_id)
+  token = _token_for_bot(network, peer_id)
+  if token is None:
+    raise KeyError(peer_id)
+  network.files[f"{file_id}.bin"] = b"e2e-photo-content"
+  message = _append_inbound(
+    network,
+    user_id,
+    peer_id,
+    {
+      "from": dict(user),
+      # A ladder of sizes, as real Telegram sends: a consumer picking the
+      # largest takes the last entry. One size would not exercise that.
+      "photo": [
+        {"file_id": f"{file_id}-s", "file_unique_id": f"{file_id}-s",
+         "width": 90, "height": 90, "file_size": 17},
+        {"file_id": file_id, "file_unique_id": file_id,
+         "width": 1280, "height": 1280, "file_size": 17},
+      ],
+    },
+  )
+  return network.push_update(token, {"message": message})
