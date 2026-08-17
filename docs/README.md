@@ -1,14 +1,27 @@
-# Documents
+# Design history
 
-An as-is import from the repository this emulator grew inside. The files are
-in Russian and are kept unchanged on purpose: they record why the product is
-shaped the way it is, and rewriting that history would cost more than it is
-worth.
+Two specs, carried over from the private repository this emulator grew inside
+and extracted from at commit `204d7e6`. They are in Russian, and they stay
+that way: `tests/test_language.py` guards English everywhere except this
+directory.
 
-The product itself speaks English — see the language guard in
-`tests/test_language.py`, which deliberately skips this directory.
+- `specs/2026-08-13-test-telegram-design.md` — the umbrella product spec.
+  Boundaries, the three facades, the data model, the error contract, and why
+  there is deliberately no "the Bot API is complete" milestone. **Wave 4
+  planning starts here.**
+- `specs/2026-08-16-test-telegram-wave-3-design.md` — groups and channels:
+  membership, privacy mode, channel posts.
 
-- `specs/` — the umbrella product spec and the wave 3 spec. Wave 4 planning
-  starts here.
-- `plans/` — implementation journals for waves 1 to 3, already delivered.
-- `backlog/` — findings not yet acted on.
+Both were written before the extraction, when the emulator still lived as a
+package inside another repository, and they speak of that in the present
+tense. References to the origin project are deliberately unnamed: it is
+private, and its identity is not this product's to publish.
+
+What is **not** here, on purpose:
+
+- **Implementation journals for waves 1–3.** They stayed behind with the
+  project that ran them. What they describe is either restated in the specs
+  above or, more precisely, pinned by the contract suite in `tests/` — 187
+  tests are a sharper record of behaviour than prose.
+- **The backlog.** Its one open finding (`400 chat not found` versus
+  `403 can't initiate`) was fixed before the extraction and the note retired.
