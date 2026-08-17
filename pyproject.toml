@@ -30,6 +30,12 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["telemulator*"]
 
+[tool.setuptools.package-data]
+# Both are loaded relative to __file__ at runtime: catalog.py reads the JSON,
+# app.py mounts web/ as StaticFiles. Without this the wheel imports fine and
+# dies on first use.
+telemulator = ["catalog.json", "web/*"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
