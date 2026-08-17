@@ -21,18 +21,39 @@ Or run the image:
 
 ## Use it from a test
 
+The emulator is one half of the setup; your own bot is the other. Start the
+server, point the bot's API base URL at `server.url`, and let it poll — then
+drive a human and assert on what they see.
+
 ```python
 from telemulator import TelemulatorServer, UserClient
 
+BOT_TOKEN = "111111111:AAFakeBotTokenForTests0000000000"
+
 server = TelemulatorServer()
-await server.start()          # loopback HTTP; point your bot at server.url
+await server.start()                      # loopback HTTP on a free port
+
+# Your bot runs here, with its API base URL set to server.url and polling
+# getUpdates. Nothing below will get an answer until it does.
+
 view = server.state(BOT_TOKEN)
-view.open_dialog(900001, first_name="Ann")
+view.open_dialog(900001, first_name="Ann")   # as if the user had pressed /start
 user = UserClient(view, 900001)
-await user.send("/start")
+
+await user.send("/start")                 # waits for the bot to reply
 assert "Menu" in user.screen().text
+
 await server.stop()
 ```
+
+`press("<label>")` pushes an inline button by the label on the current screen.
+Both it and `send` wait for the bot to answer and raise `BotSilentError` with
+the screen, the Bot API call journal, and the pending update queue if it
+doesn't — a silent bot fails loudly instead of timing out into a bare
+assertion. Pass `expect_reply=False` to `send` when no answer is expected.
+
+Two people can talk with no bot involved at all: `await ann.send_to(bob.user_id,
+"hi")` puts the message in both feeds.
 
 ## Develop
 
