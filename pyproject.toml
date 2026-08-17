@@ -53,6 +53,9 @@ branch = true
 source = ["telemulator"]
 
 [tool.coverage.report]
+# Measured, not aspired to: coverage was never gated before the extract.
+# Raising this is its own task.
+fail_under = 87
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",

@@ -30,8 +30,8 @@ jobs:
       - name: Syntax check
         run: python -m compileall -q telemulator
 
-      - name: Tests
-        run: pytest -n 2 -q
+      - name: Tests with coverage gate
+        run: pytest --cov=telemulator --cov-branch -n 2 -q
 
   wheel:
     runs-on: ubuntu-latest

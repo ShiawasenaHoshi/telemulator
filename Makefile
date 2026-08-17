@@ -13,8 +13,8 @@ setup:  ## venv and dependencies
 	python3.12 -m venv $(VENV)
 	$(VENV)/bin/pip install -e ".[dev]"
 
-test:  ## the whole suite
-	$(PYTEST) -n $(N) -q
+test:  ## the whole suite with the coverage gate
+	$(PYTEST) --cov=telemulator --cov-branch -n $(N) -q
 
 web:  ## the web client on :8081
 	$(VENV)/bin/uvicorn telemulator.app:create_app --factory --host 127.0.0.1 --port 8081
