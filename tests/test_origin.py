@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import base64
 import re
-from pathlib import Path
 
-# Names that must never appear anywhere in this repo, including docs/: the
-# private project this emulator was extracted from, its vendors, and a
+from repo_files import in_docs, tracked_text_files
+
+# Names that must never appear anywhere in this repository, docs/ included:
+# the private project this emulator was extracted from, its vendors, and a
 # person's name. Base64-encoded so this guard doesn't itself republish the
 # names it exists to keep out.
 _IDENTITY_WORDS_B64 = (
@@ -24,28 +25,14 @@ IDENTITY_RE = re.compile("|".join(re.escape(w) for w in IDENTITY_WORDS), re.IGNO
 CODE_WORDS = ("tgmock", "club")
 CODE_RE = re.compile("|".join(re.escape(w) for w in CODE_WORDS), re.IGNORECASE)
 
-SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", "build", "dist"}
-TRACKED_SUFFIXES = {".py", ".js", ".html", ".css", ".json", ".toml", ".md", ".yml", ".yaml"}
-
-
-def _tracked_files() -> list[Path]:
-  root = Path(__file__).resolve().parents[1]
-  out: list[Path] = []
-  for path in root.rglob("*"):
-    if any(part in SKIP_DIRS for part in path.relative_to(root).parts):
-      continue
-    if path.is_file() and (path.suffix in TRACKED_SUFFIXES or path.name in {"Dockerfile", "Makefile"}):
-      out.append(path)
-  return out
-
 
 def test_no_traces_of_the_original_project() -> None:
   offenders: list[str] = []
-  for path in _tracked_files():
+  for path in tracked_text_files():
     if path.name == "test_origin.py":
       continue
-    in_docs = "docs" in path.relative_to(Path(__file__).resolve().parents[1]).parts
+    docs = in_docs(path)
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-      if IDENTITY_RE.search(line) or (not in_docs and CODE_RE.search(line)):
+      if IDENTITY_RE.search(line) or (not docs and CODE_RE.search(line)):
         offenders.append(f"{path}:{number}: {line.strip()}")
   assert offenders == [], "traces of the original project:\n" + "\n".join(offenders)
