@@ -112,7 +112,7 @@ async def test_members_crud_and_admin_mirror() -> None:
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
     await client.post("/admin/users", json={"id": 1, "first_name": "A"})
     await client.post("/admin/users", json={"id": 2, "first_name": "B"})
-    await client.post("/admin/bots", json={"token": TOKEN, "first_name": "Club"})
+    await client.post("/admin/bots", json={"token": TOKEN, "first_name": "Demo"})
     created = await client.post(
       "/admin/chats",
       json={"type": "supergroup", "title": "S", "creator_id": 1},

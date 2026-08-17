@@ -40,7 +40,7 @@ async def admin_create_bot(request: Request, body: dict[str, Any]) -> dict[str, 
   net = _net(request)
   user = net.create_bot(
     token=body["token"],
-    first_name=body.get("first_name", "TgMock"),
+    first_name=body.get("first_name", "Demo"),
     username=body.get("username"),
   )
   if "privacy" in body:

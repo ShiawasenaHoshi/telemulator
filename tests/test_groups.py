@@ -53,7 +53,7 @@ async def test_supergroup_send_sets_last_bot_id_and_delivers() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
     await client.post("/admin/users", json={"id": 1, "first_name": "A"})
-    await client.post("/admin/bots", json={"token": TOKEN, "username": "clubbot"})
+    await client.post("/admin/bots", json={"token": TOKEN, "username": "demobot"})
     await client.post("/user/sessions", json={"user_id": 1})
     chat = (
       await client.post("/user/chats", json={"type": "supergroup", "title": "S"})

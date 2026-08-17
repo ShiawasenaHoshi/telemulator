@@ -14,7 +14,7 @@ async def test_session_lists_chats_and_sends_p2p_visible_to_both() -> None:
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
     await client.post("/admin/users", json={"id": 1, "first_name": "A"})
     await client.post("/admin/users", json={"id": 2, "first_name": "B"})
-    await client.post("/admin/bots", json={"token": TOKEN, "first_name": "Club"})
+    await client.post("/admin/bots", json={"token": TOKEN, "first_name": "Demo"})
     await client.post("/admin/dialogs", json={"user_id": 1, "bot_token": TOKEN})
 
     unauth = await client.get("/user/me")
@@ -27,7 +27,7 @@ async def test_session_lists_chats_and_sends_p2p_visible_to_both() -> None:
     assert me.json()["id"] == 1
 
     chats = {c["id"]: c for c in (await client.get("/user/chats")).json()["chats"]}
-    assert chats[111111111]["first_name"] == "Club"
+    assert chats[111111111]["first_name"] == "Demo"
 
     await client.post(f"/bot{TOKEN}/sendMessage", data={"chat_id": "1", "text": "menu"})
     feed = (
@@ -99,7 +99,7 @@ async def test_reply_keyboard_is_null_in_p2p_even_if_bot_dialog_has_one() -> Non
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
     await client.post("/admin/users", json={"id": 1, "first_name": "A"})
     await client.post("/admin/users", json={"id": 2, "first_name": "B"})
-    await client.post("/admin/bots", json={"token": TOKEN, "first_name": "Club"})
+    await client.post("/admin/bots", json={"token": TOKEN, "first_name": "Demo"})
     await client.post("/admin/dialogs", json={"user_id": 1, "bot_token": TOKEN})
     markup = {"keyboard": [[{"text": "KM estimates"}]], "resize_keyboard": True}
     await client.post(

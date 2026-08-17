@@ -71,14 +71,14 @@ def test_thread_for_and_chats_for_include_active_group() -> None:
   net = Network()
   net.create_user(id=1, first_name="A")
   net.create_user(id=2, first_name="B")
-  net.create_bot(token=TOKEN, first_name="Club")
+  net.create_bot(token=TOKEN, first_name="Demo")
   net.ensure_private_chat(1, 111111111)
   chat = net.create_chat(type="supergroup", title="Team", creator_id=1)
   chat.messages.append({"message_id": 1, "text": "hi", "chat": chat_card(chat)})
   chats = {c["id"]: c for c in net.chats_for(1)}
   assert chats[chat.id]["title"] == "Team"
   assert "first_name" not in chats[chat.id]
-  assert chats[111111111]["first_name"] == "Club"
+  assert chats[111111111]["first_name"] == "Demo"
   assert [m["text"] for m in net.thread_for(1, chat.id)] == ["hi"]
   assert net.chats_for(2) == []
   assert net.thread_for(2, chat.id) == []

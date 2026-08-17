@@ -10,7 +10,7 @@ ALERT = "222222222:AAFakeAlertTokenForE2ETests0000"
 def _seed(net: Network) -> None:
   net.create_user(id=1, first_name="A")
   net.create_user(id=2, first_name="B")
-  net.create_bot(token=TOKEN, first_name="Club", username="clubbot")
+  net.create_bot(token=TOKEN, first_name="Demo", username="demobot")
   net.create_bot(token=ALERT, first_name="Alert", username="alertbot")
 
 

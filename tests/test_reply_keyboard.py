@@ -21,7 +21,7 @@ def _kb(label: str) -> str:
 def test_two_bots_keep_separate_reply_keyboards_on_screen() -> None:
   net = Network()
   net.create_user(id=9, first_name="Test")
-  net.create_bot(token=TOKEN, first_name="Club")
+  net.create_bot(token=TOKEN, first_name="Demo")
   net.create_bot(token=ALERT, first_name="Alert")
   net.ensure_private_chat(9, 111111111)
   net.ensure_private_chat(9, 222222222)
@@ -37,7 +37,7 @@ async def test_user_http_reads_keyboard_by_bot_peer() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
     await client.post("/admin/users", json={"id": 9, "first_name": "Test"})
-    await client.post("/admin/bots", json={"token": TOKEN, "first_name": "Club"})
+    await client.post("/admin/bots", json={"token": TOKEN, "first_name": "Demo"})
     await client.post("/admin/bots", json={"token": ALERT, "first_name": "Alert"})
     await client.post("/admin/dialogs", json={"user_id": 9, "bot_token": TOKEN})
     await client.post("/admin/dialogs", json={"user_id": 9, "bot_token": ALERT})
@@ -50,7 +50,7 @@ async def test_user_http_reads_keyboard_by_bot_peer() -> None:
       data={"chat_id": "9", "text": "b", "reply_markup": _kb("Alert")},
     )
     await client.post("/user/sessions", json={"user_id": 9})
-    club = (await client.get("/user/chats/111111111/messages")).json()
+    demo = (await client.get("/user/chats/111111111/messages")).json()
     alert = (await client.get("/user/chats/222222222/messages")).json()
-    assert club["reply_keyboard"] == [["Menu"]]
+    assert demo["reply_keyboard"] == [["Menu"]]
     assert alert["reply_keyboard"] == [["Alert"]]

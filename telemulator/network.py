@@ -260,7 +260,7 @@ class Network:
     self,
     *,
     token: str,
-    first_name: str = "TgMock",
+    first_name: str = "Demo",
     username: str | None = None,
   ) -> dict[str, Any]:
     bot_id = int(token.split(":")[0])

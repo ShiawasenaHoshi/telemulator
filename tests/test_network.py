@@ -52,7 +52,7 @@ def test_old_snapshot_journal_fields_default_to_none() -> None:
 def test_user_and_bot_are_bot_api_users() -> None:
   net = Network()
   user = net.create_user(id=42, first_name="Anna", username="anna")
-  bot = net.create_bot(token=TOKEN, first_name="Club")
+  bot = net.create_bot(token=TOKEN, first_name="Demo")
   assert user == {"id": 42, "is_bot": False, "first_name": "Anna", "username": "anna"}
   assert bot["is_bot"] is True
   assert bot["id"] == 111111111
@@ -108,7 +108,7 @@ def test_viewer_sees_each_peer_as_its_own_chat() -> None:
   net = Network()
   net.create_user(id=1, first_name="A")
   net.create_user(id=2, first_name="B")
-  net.create_bot(token=TOKEN, first_name="Club")
+  net.create_bot(token=TOKEN, first_name="Demo")
   net.ensure_private_chat(1, 111111111)
   net.open_private_users(1, 2)
   net.append_bot_message(
@@ -124,7 +124,7 @@ def test_viewer_sees_each_peer_as_its_own_chat() -> None:
   )
 
   chats = {chat["id"]: chat for chat in net.chats_for(1)}
-  assert chats[111111111]["first_name"] == "Club"
+  assert chats[111111111]["first_name"] == "Demo"
   assert chats[111111111]["type"] == "private"
   assert chats[2]["first_name"] == "B"
   assert [m["text"] for m in net.thread_for(1, 111111111)] == ["menu"]

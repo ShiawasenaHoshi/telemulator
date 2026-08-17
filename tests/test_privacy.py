@@ -13,7 +13,7 @@ ALERT = "222222222:AAFakeAlertTokenForE2ETests0000"
 def _group_with_two_privacy_bots() -> tuple[Network, int]:
   net = Network()
   net.create_user(id=1, first_name="A")
-  net.create_bot(token=TOKEN, first_name="Club", username="clubbot")
+  net.create_bot(token=TOKEN, first_name="Demo", username="demobot")
   net.create_bot(token=ALERT, first_name="Alert", username="alertbot")
   chat = net.create_chat(type="supergroup", title="S", creator_id=1)
   net.add_member(chat.id, 111111111, actor_id=1)
@@ -33,8 +33,8 @@ def _texts(net: Network, token: str) -> list[str]:
 
 def test_cmd_at_mention_reaches_that_bot_only_among_privacy_bots() -> None:
   net, chat_id = _group_with_two_privacy_bots()
-  send_text(net, 1, chat_id, "/start@clubbot")
-  assert "/start@clubbot" in _texts(net, TOKEN)
+  send_text(net, 1, chat_id, "/start@demobot")
+  assert "/start@demobot" in _texts(net, TOKEN)
   assert _texts(net, ALERT) == []
 
 
@@ -48,9 +48,9 @@ def test_bare_cmd_goes_to_last_bot_id_only() -> None:
 
 def test_cmd_in_the_middle_and_plain_text_and_mention_are_silent() -> None:
   net, chat_id = _group_with_two_privacy_bots()
-  send_text(net, 1, chat_id, "see /start@clubbot")
+  send_text(net, 1, chat_id, "see /start@demobot")
   send_text(net, 1, chat_id, "hi")
-  send_text(net, 1, chat_id, "@clubbot hi")
+  send_text(net, 1, chat_id, "@demobot hi")
   assert _texts(net, TOKEN) == []
   assert _texts(net, ALERT) == []
 
@@ -63,7 +63,7 @@ def test_reply_to_bot_beats_cmd_at_other_among_step3() -> None:
       "message_id": 50,
       "from": dict(net.users[111111111]),
       "chat": {"id": chat.id, "type": "supergroup", "title": "S"},
-      "text": "from club",
+      "text": "from demo",
     }
   )
   send_text(net, 1, chat_id, "/start@alertbot", reply_to_message_id=50)
@@ -107,7 +107,7 @@ def test_service_reaches_privacy_bot_while_in_chat() -> None:
   net = Network()
   net.create_user(id=1, first_name="A")
   net.create_user(id=2, first_name="B")
-  net.create_bot(token=TOKEN, first_name="Club", username="clubbot")
+  net.create_bot(token=TOKEN, first_name="Demo", username="demobot")
   chat = net.create_chat(type="supergroup", title="S", creator_id=1)
   net.add_member(chat.id, 111111111, actor_id=1)
   net.bots[TOKEN].updates.clear()
@@ -118,7 +118,7 @@ def test_service_reaches_privacy_bot_while_in_chat() -> None:
 def test_privacy_post_does_not_rewrite_existing_joins() -> None:
   net = Network()
   net.create_user(id=1, first_name="A")
-  net.create_bot(token=TOKEN, first_name="Club", username="clubbot")
+  net.create_bot(token=TOKEN, first_name="Demo", username="demobot")
   chat = net.create_chat(type="supergroup", title="S", creator_id=1)
   net.add_member(chat.id, 111111111, actor_id=1)
   net.bots[TOKEN].privacy_mode = False
@@ -144,7 +144,7 @@ async def test_admin_privacy_and_get_me_flags() -> None:
 def test_readd_picks_up_new_privacy_mode() -> None:
   net = Network()
   net.create_user(id=1, first_name="A")
-  net.create_bot(token=TOKEN, first_name="Club", username="clubbot")
+  net.create_bot(token=TOKEN, first_name="Demo", username="demobot")
   chat = net.create_chat(type="supergroup", title="S", creator_id=1)
   net.add_member(chat.id, 111111111, actor_id=1)
   # A third-party remove in a supergroup yields kicked — without unban, add_member fails (Task 2).
@@ -159,7 +159,7 @@ def test_readd_picks_up_new_privacy_mode() -> None:
 
 def test_dump_load_reset_preserve_privacy_mode() -> None:
   net = Network()
-  net.create_bot(token=TOKEN, first_name="Club")
+  net.create_bot(token=TOKEN, first_name="Demo")
   assert net.bots[TOKEN].user["username"] == "telemulator111111111"
   net.bots[TOKEN].privacy_mode = False
   restored = Network()
@@ -174,8 +174,8 @@ def test_old_snapshot_privacy_mode_defaults_true() -> None:
   net = Network()
   net.load(
     {
-      "users": [{"id": 111111111, "is_bot": True, "first_name": "Club"}],
-      "bots": [{"token": TOKEN, "user": {"id": 111111111, "is_bot": True, "first_name": "Club"}}],
+      "users": [{"id": 111111111, "is_bot": True, "first_name": "Demo"}],
+      "bots": [{"token": TOKEN, "user": {"id": 111111111, "is_bot": True, "first_name": "Demo"}}],
     }
   )
   assert net.bots[TOKEN].privacy_mode is True

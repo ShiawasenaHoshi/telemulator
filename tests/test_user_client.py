@@ -92,7 +92,7 @@ async def test_press_finds_the_button_when_the_human_talks_to_two_bots() -> None
   """A person may talk to more than one bot: look up the thread with the message, not the first one."""
   net = Network()
   net.create_user(id=9, first_name="Test")
-  net.create_bot(token=TOKEN, first_name="Club")
+  net.create_bot(token=TOKEN, first_name="Demo")
   net.create_bot(token=ALERT_TOKEN, first_name="Alert")
   net.ensure_private_chat(9, 111111111)
   net.ensure_private_chat(9, 222222222)
