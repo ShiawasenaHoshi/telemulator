@@ -17,11 +17,17 @@ package inside another repository, and they speak of that in the present
 tense. References to the origin project are deliberately unnamed: it is
 private, and its identity is not this product's to publish.
 
+`backlog/` holds findings noticed and deliberately left for later — one file
+per finding, in English, deleted once the finding is resolved or stops being
+true. It arrived with the same extraction and follows the same rule about the
+origin project. An earlier finding there, `400 chat not found` versus
+`403 can't initiate`, was fixed before the extraction and its note retired.
+
 What is **not** here, on purpose:
 
 - **Implementation journals for waves 1–3.** They stayed behind with the
   project that ran them. What they describe is either restated in the specs
   above or, more precisely, pinned by the contract suite in `tests/` — 187
   tests are a sharper record of behaviour than prose.
-- **The backlog.** Its one open finding (`400 chat not found` versus
-  `403 can't initiate`) was fixed before the extraction and the note retired.
+- **A second copy of the design decisions.** The specs above are the record;
+  `tests/` is the contract.
