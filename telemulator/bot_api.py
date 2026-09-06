@@ -18,6 +18,7 @@ from telemulator.errors import (
   KICKED_CHANNEL,
   KICKED_GROUP,
   KICKED_SUPER,
+  MESSAGE_TO_DELETE,
   MESSAGE_TO_EDIT,
   METHOD_SUPER_CHANNEL,
   NOT_ENOUGH_PROMOTE,
@@ -50,7 +51,9 @@ IMPLEMENTED = frozenset(
     "getUpdates",
     "sendMessage",
     "editMessageText",
+    "editMessageCaption",
     "editMessageReplyMarkup",
+    "deleteMessage",
     "answerCallbackQuery",
     "sendPhoto",
     "sendDocument",
@@ -560,6 +563,33 @@ def _edit_message_text(network: Network, token: str, params: dict[str, Any]) -> 
   )
 
 
+def _edit_message_caption(network: Network, token: str, params: dict[str, Any]) -> Response:
+  chat_id = int(params["chat_id"])
+  message_id = int(params["message_id"])
+  fields: dict[str, Any] = {"caption": str(params.get("caption", ""))}
+  if params.get("parse_mode"):
+    fields["parse_mode"] = params["parse_mode"]
+  target = network.edit_bot_message(token, chat_id, message_id, **fields)
+  if target is None:
+    return _err(*bot_error(400, MESSAGE_TO_EDIT))
+  return _ok(
+    {
+      "message_id": message_id,
+      "date": target["date"],
+      "chat": target.get("chat") or {"id": chat_id, "type": "private"},
+      "caption": target["caption"],
+    }
+  )
+
+
+def _delete_message(network: Network, token: str, params: dict[str, Any]) -> Response:
+  chat_id = int(params["chat_id"])
+  message_id = int(params["message_id"])
+  if not network.delete_bot_message(token, chat_id, message_id):
+    return _err(*bot_error(400, MESSAGE_TO_DELETE))
+  return _ok(True)
+
+
 def _edit_reply_markup(network: Network, token: str, params: dict[str, Any]) -> Response:
   chat_id = int(params["chat_id"])
   message_id = int(params["message_id"])
@@ -724,7 +754,9 @@ HANDLERS = {
   "getMe": lambda net, token, params: _get_me(net.bots[token], params),
   "sendMessage": _send_message,
   "editMessageText": _edit_message_text,
+  "editMessageCaption": _edit_message_caption,
   "editMessageReplyMarkup": _edit_reply_markup,
+  "deleteMessage": _delete_message,
   "answerCallbackQuery": _answer_callback_query,
   "sendPhoto": _send_photo,
   "sendDocument": _send_document,

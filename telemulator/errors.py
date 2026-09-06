@@ -8,6 +8,7 @@ CHAT_NOT_FOUND = "Bad Request: chat not found"
 CANT_INITIATE = "Forbidden: bot can't initiate conversation with a user"
 BLOCKED = "Forbidden: bot was blocked by the user"
 MESSAGE_TO_EDIT = "Bad Request: message to edit not found"
+MESSAGE_TO_DELETE = "Bad Request: message to delete not found"
 CONFLICT_GETUPDATES = (
   "Conflict: terminated by other getUpdates request; "
   "make sure that only one bot instance is running"
