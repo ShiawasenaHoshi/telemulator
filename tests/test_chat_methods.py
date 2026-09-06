@@ -428,3 +428,101 @@ async def test_edit_message_caption_changes_what_the_person_sees() -> None:
 
     feed = app.state.network.messages_for_peer(42, 111111111)
     assert feed[-1]["caption"] == "right price"
+
+
+async def test_delete_message_in_a_group_removes_it_for_everyone() -> None:
+  app = create_app()
+  async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/bots", json={"token": TOKEN})
+    await client.post("/user/sessions", json={"user_id": 1})
+    chat = (
+      await client.post("/user/chats", json={"type": "supergroup", "title": "S"})
+    ).json()["chat"]
+    app.state.network.add_member(chat["id"], 111111111, actor_id=1)
+    sent = (
+      await client.post(
+        f"/bot{TOKEN}/sendMessage", data={"chat_id": str(chat["id"]), "text": "oops"}
+      )
+    ).json()["result"]
+
+    deleted = await client.post(
+      f"/bot{TOKEN}/deleteMessage",
+      data={"chat_id": str(chat["id"]), "message_id": str(sent["message_id"])},
+    )
+
+    assert deleted.json() == {"ok": True, "result": True}
+    assert app.state.network.messages(chat["id"]) == []
+
+    missing = await client.post(
+      f"/bot{TOKEN}/deleteMessage",
+      data={"chat_id": str(chat["id"]), "message_id": "999999"},
+    )
+    assert missing.status_code == 400
+
+
+async def test_delete_message_without_a_dialog_is_400() -> None:
+  """No thread at all: the person never wrote to the bot."""
+  app = create_app()
+  async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
+    await client.post("/admin/users", json={"id": 42, "first_name": "Anna"})
+    await client.post("/admin/bots", json={"token": TOKEN})
+
+    response = await client.post(
+      f"/bot{TOKEN}/deleteMessage", data={"chat_id": "42", "message_id": "1"}
+    )
+
+    assert response.status_code == 400
+    assert response.json()["ok"] is False
+
+
+async def test_delete_message_leaves_the_other_messages_alone() -> None:
+  app = create_app()
+  async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
+    await client.post("/admin/users", json={"id": 42, "first_name": "Anna"})
+    await client.post("/admin/bots", json={"token": TOKEN})
+    await client.post("/admin/dialogs", json={"user_id": 42, "bot_token": TOKEN})
+    for text in ("first", "second"):
+      await client.post(f"/bot{TOKEN}/sendMessage", data={"chat_id": "42", "text": text})
+
+    missing = await client.post(
+      f"/bot{TOKEN}/deleteMessage", data={"chat_id": "42", "message_id": "999999"}
+    )
+
+    assert missing.status_code == 400
+    feed = app.state.network.messages_for_peer(42, 111111111)
+    assert [m["text"] for m in feed] == ["first", "second"]
+
+
+async def test_edit_message_caption_honours_parse_mode_and_missing_message() -> None:
+  app = create_app()
+  async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
+    await client.post("/admin/users", json={"id": 42, "first_name": "Anna"})
+    await client.post("/admin/bots", json={"token": TOKEN})
+    await client.post("/admin/dialogs", json={"user_id": 42, "bot_token": TOKEN})
+    sent = (
+      await client.post(
+        f"/bot{TOKEN}/sendDocument",
+        data={"chat_id": "42", "document": "file-id", "caption": "plain"},
+      )
+    ).json()["result"]
+
+    await client.post(
+      f"/bot{TOKEN}/editMessageCaption",
+      data={
+        "chat_id": "42",
+        "message_id": str(sent["message_id"]),
+        "caption": "<b>bold</b>",
+        "parse_mode": "HTML",
+      },
+    )
+
+    feed = app.state.network.messages_for_peer(42, 111111111)
+    assert feed[-1]["caption"] == "<b>bold</b>"
+    assert feed[-1]["parse_mode"] == "HTML"
+
+    missing = await client.post(
+      f"/bot{TOKEN}/editMessageCaption",
+      data={"chat_id": "42", "message_id": "999999", "caption": "nope"},
+    )
+    assert missing.status_code == 400
