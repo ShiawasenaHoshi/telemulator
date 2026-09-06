@@ -13,11 +13,11 @@ Not affiliated with Telegram.
 
 ## Install
 
-    pip install "telemulator @ git+https://github.com/ShiawasenaHoshi/telemulator.git@v0.2.1"
+    pip install "telemulator @ git+https://github.com/ShiawasenaHoshi/telemulator.git@v0.2.2"
 
 Or run the image:
 
-    docker run -p 8081:8081 ghcr.io/shiawasenahoshi/telemulator/emulator:0.2.1
+    docker run -p 8081:8081 ghcr.io/shiawasenahoshi/telemulator/emulator:0.2.2
 
 ## Use it from a test
 
