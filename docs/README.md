@@ -17,6 +17,12 @@ package inside another repository, and they speak of that in the present
 tense. References to the origin project are deliberately unnamed: it is
 private, and its identity is not this product's to publish.
 
+`agent-brief.md` is not history: it is the current-state briefing an agent (or
+a person) reads before touching this repository — stack, layout, the commands
+that were actually run, the guards that must not be weakened, and what is
+parked. It is in English, like the rest of the product, and it is expected to
+be updated when it stops being true.
+
 `backlog/` holds findings noticed and deliberately left for later — one file
 per finding, in English, deleted once the finding is resolved or stops being
 true. It arrived with the same extraction and follows the same rule about the
