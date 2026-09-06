@@ -368,3 +368,63 @@ async def test_user_patch_drops_can_be_edited_from_earlier_bot_promote() -> None
     assert after["can_delete_messages"] is True
     assert after["can_change_info"] is False
     assert app.state.network.chats[chat["id"]].members[2].promoted_by_bot_id is None
+
+
+async def test_delete_message_removes_it_from_the_feed() -> None:
+  app = create_app()
+  async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
+    await client.post("/admin/users", json={"id": 42, "first_name": "Anna"})
+    await client.post("/admin/bots", json={"token": TOKEN})
+    await client.post("/admin/dialogs", json={"user_id": 42, "bot_token": TOKEN})
+    sent = (
+      await client.post(f"/bot{TOKEN}/sendMessage", data={"chat_id": "42", "text": "oops"})
+    ).json()["result"]
+
+    deleted = await client.post(
+      f"/bot{TOKEN}/deleteMessage",
+      data={"chat_id": "42", "message_id": str(sent["message_id"])},
+    )
+
+    assert deleted.json() == {"ok": True, "result": True}
+    feed = app.state.network.messages_for_peer(42, 111111111)
+    assert [m["message_id"] for m in feed] == []
+
+
+async def test_deleting_the_same_message_twice_is_400() -> None:
+  app = create_app()
+  async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
+    await client.post("/admin/users", json={"id": 42, "first_name": "Anna"})
+    await client.post("/admin/bots", json={"token": TOKEN})
+    await client.post("/admin/dialogs", json={"user_id": 42, "bot_token": TOKEN})
+    sent = (
+      await client.post(f"/bot{TOKEN}/sendMessage", data={"chat_id": "42", "text": "oops"})
+    ).json()["result"]
+    data = {"chat_id": "42", "message_id": str(sent["message_id"])}
+    await client.post(f"/bot{TOKEN}/deleteMessage", data=data)
+
+    second = await client.post(f"/bot{TOKEN}/deleteMessage", data=data)
+
+    assert second.status_code == 400
+    assert second.json()["ok"] is False
+
+
+async def test_edit_message_caption_changes_what_the_person_sees() -> None:
+  app = create_app()
+  async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
+    await client.post("/admin/users", json={"id": 42, "first_name": "Anna"})
+    await client.post("/admin/bots", json={"token": TOKEN})
+    await client.post("/admin/dialogs", json={"user_id": 42, "bot_token": TOKEN})
+    sent = (
+      await client.post(
+        f"/bot{TOKEN}/sendDocument",
+        data={"chat_id": "42", "document": "file-id", "caption": "wrong price"},
+      )
+    ).json()["result"]
+
+    await client.post(
+      f"/bot{TOKEN}/editMessageCaption",
+      data={"chat_id": "42", "message_id": str(sent["message_id"]), "caption": "right price"},
+    )
+
+    feed = app.state.network.messages_for_peer(42, 111111111)
+    assert feed[-1]["caption"] == "right price"

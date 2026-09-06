@@ -85,6 +85,7 @@ function bubble(msg, myId) {
   const mine = msg.from && msg.from.id === myId;
   const el = document.createElement("div");
   el.className = "bubble" + (mine ? " mine" : "");
+  el.dataset.messageId = msg.message_id;
   const text = document.createElement("div");
   if (msg.new_chat_members) {
     text.textContent = msg.new_chat_members.map((u) => u.first_name).join(", ");
@@ -275,6 +276,11 @@ function connectEvents() {
       resetOpenChat();
       document.getElementById("chats").innerHTML = "";
       loadJournal();
+      return;
+    }
+    if (data.type === "message_deleted") {
+      const node = document.querySelector(`[data-message-id="${data.message.message_id}"]`);
+      if (node) node.remove();
       return;
     }
     if (data.type === "message" || data.type === "message_edited") {

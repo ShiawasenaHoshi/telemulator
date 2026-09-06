@@ -626,6 +626,10 @@ class Network:
     return thread if thread is not None else []
 
   def messages_for_peer(self, a_id: int, b_id: int) -> list[dict[str, Any]]:
+    if self._is_bot_id(a_id):
+      return list(self.bot_chats.get((b_id, a_id), []))
+    if self._is_bot_id(b_id):
+      return list(self.bot_chats.get((a_id, b_id), []))
     return list(self.private_user_chats.get(frozenset({a_id, b_id}), []))
 
   def _is_bot_id(self, peer_id: int) -> bool:
@@ -857,6 +861,34 @@ class Network:
         )
         return msg
     return None
+
+  def delete_bot_message(self, token: str, chat_id: int, message_id: int) -> bool:
+    """Remove a bot message from the feed. Mirror of edit_bot_message."""
+    chat = self.chats.get(chat_id)
+    if chat is not None:
+      for index, msg in enumerate(chat.messages):
+        if msg.get("message_id") == message_id:
+          del chat.messages[index]
+          self.emit_chat_message(chat, msg, "message_deleted")
+          return True
+      return False
+    bot = self.bots[token]
+    thread = self.bot_chats.get((chat_id, bot.user["id"]))
+    if thread is None:
+      return False
+    for index, msg in enumerate(thread):
+      if msg.get("message_id") == message_id:
+        del thread[index]
+        self.emit(
+          {
+            "type": "message_deleted",
+            "peer_id": bot.user["id"],
+            "viewer_id": chat_id,
+            "message": {**dict(msg), "chat": _chat_of(bot.user)},
+          }
+        )
+        return True
+    return False
 
   def dump(self) -> dict[str, Any]:
     bots: list[dict[str, Any]] = []
