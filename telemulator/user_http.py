@@ -11,9 +11,12 @@ from telemulator.chats import ACTIVE_STATUSES, chat_card, member_json
 from telemulator.network import Network
 from telemulator.user_api import (
   _press,
+  _token_for_bot,
   actor_can_add,
   list_members_json,
   message_for_viewer,
+  send_document,
+  send_photo,
   send_text,
 )
 
@@ -197,7 +200,7 @@ async def post_message(
   text = str(body.get("text") or "")
   reply_to_message_id = body.get("reply_to_message_id")
   try:
-    send_text(
+    update_id = send_text(
       net, viewer_id, peer_id, text, reply_to_message_id=reply_to_message_id
     )
   except KeyError as exc:
@@ -205,21 +208,78 @@ async def post_message(
   except PermissionError as exc:
     raise HTTPException(status_code=403, detail=str(exc)) from exc
   stored = net.thread_for(viewer_id, peer_id)[-1]
-  return {"message": message_for_viewer(net, stored, peer_id)}
+  return {"message": message_for_viewer(net, stored, peer_id), "update_id": update_id}
+
+
+@router.post("/user/chats/{peer_id}/photos")
+async def post_photo(peer_id: int, request: Request, body: dict[str, Any]) -> dict[str, int]:
+  net = _net(request)
+  viewer_id = _viewer_id(request)
+  file_id = str(body.get("file_id") or "user-photo-1")
+  reply_to = body.get("reply_to_message_id")
+  try:
+    update_id = send_photo(
+      net,
+      viewer_id,
+      peer_id,
+      file_id=file_id,
+      reply_to_message_id=int(reply_to) if reply_to is not None else None,
+    )
+  except KeyError as exc:
+    raise HTTPException(status_code=400, detail="peer is not a bot") from exc
+  return {"update_id": update_id}
+
+
+@router.post("/user/chats/{peer_id}/documents")
+async def post_document(peer_id: int, request: Request, body: dict[str, Any]) -> dict[str, int]:
+  net = _net(request)
+  viewer_id = _viewer_id(request)
+  file_id = str(body.get("file_id") or "user-doc-1")
+  file_name = str(body.get("file_name") or "certificate.pdf")
+  reply_to = body.get("reply_to_message_id")
+  try:
+    update_id = send_document(
+      net,
+      viewer_id,
+      peer_id,
+      file_id=file_id,
+      file_name=file_name,
+      reply_to_message_id=int(reply_to) if reply_to is not None else None,
+    )
+  except KeyError as exc:
+    raise HTTPException(status_code=400, detail="peer is not a bot") from exc
+  return {"update_id": update_id}
+
+
+@router.get("/user/chats/{peer_id}/acks/{update_id}")
+async def wait_ack(
+  peer_id: int, update_id: int, request: Request, timeout: float = 10.0
+) -> dict[str, bool]:
+  """Wait until the bot has finished this update, not until the wire goes quiet.
+
+  A timeout answers False rather than raising: a silent bot is an assertion
+  for the caller to make, not a transport failure.
+  """
+  net = _net(request)
+  _viewer_id(request)
+  token = _token_for_bot(net, peer_id)
+  if token is None:
+    raise HTTPException(status_code=400, detail="peer is not a bot")
+  return {"acked": await net.wait_acked(token, update_id, timeout)}
 
 
 @router.post("/user/chats/{peer_id}/messages/{message_id}/press")
 async def press(
   peer_id: int, message_id: int, request: Request, body: dict[str, Any]
-) -> dict[str, str]:
+) -> dict[str, Any]:
   net = _net(request)
   viewer_id = _viewer_id(request)
   data = str(body.get("data") or "")
   try:
-    _, query_id = _press(net, viewer_id, peer_id, message_id, data)
+    update_id, query_id = _press(net, viewer_id, peer_id, message_id, data)
   except KeyError as exc:
     raise HTTPException(status_code=400, detail=str(exc)) from exc
-  return {"query_id": query_id}
+  return {"query_id": query_id, "update_id": update_id}
 
 
 @router.get("/user/files/{path:path}")

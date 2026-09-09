@@ -50,11 +50,27 @@ def _token_for_bot(network: Network, bot_id: int) -> str | None:
 
 
 def _append_inbound(
-  network: Network, user_id: int, bot_id: int, fields: dict[str, Any]
+  network: Network,
+  user_id: int,
+  bot_id: int,
+  fields: dict[str, Any],
+  *,
+  reply_to_message_id: int | None = None,
 ) -> dict[str, Any]:
   chat = network.ensure_private_chat(user_id, bot_id)
   thread = network.bot_chats[(user_id, bot_id)]
   message = dict(fields)
+  if reply_to_message_id is not None:
+    origin = next(
+      (m for m in thread if m.get("message_id") == reply_to_message_id), None
+    )
+    if origin is not None:
+      quoted = dict(origin)
+      # Messages the bot sent are stored without a chat — it is added only on
+      # the way out to the feed. In a private chat every message shares one.
+      quoted.setdefault("chat", chat)
+      message["reply_to_message"] = quoted
+      message["reply_to_message_id"] = reply_to_message_id
   message["message_id"] = max((m.get("message_id", 0) for m in thread), default=0) + 1
   message["date"] = int(time.time())
   message.setdefault("chat", chat)
@@ -127,6 +143,7 @@ def send_text(
     user_id,
     peer_id,
     {"from": dict(user), "text": text},
+    reply_to_message_id=reply_to_message_id,
   )
   return network.push_update(token, {"message": message})
 
@@ -252,6 +269,7 @@ def send_document(
   *,
   file_id: str = "user-doc-1",
   file_name: str = "certificate.pdf",
+  reply_to_message_id: int | None = None,
 ) -> int:
   user = _ensure_user(network, user_id)
   token = _token_for_bot(network, peer_id)
@@ -271,6 +289,7 @@ def send_document(
         "file_size": 17,
       },
     },
+    reply_to_message_id=reply_to_message_id,
   )
   return network.push_update(token, {"message": message})
 
@@ -281,6 +300,7 @@ def send_photo(
   peer_id: int,
   *,
   file_id: str = "user-photo-1",
+  reply_to_message_id: int | None = None,
 ) -> int:
   user = _ensure_user(network, user_id)
   token = _token_for_bot(network, peer_id)
@@ -302,5 +322,6 @@ def send_photo(
          "width": 1280, "height": 1280, "file_size": 17},
       ],
     },
+    reply_to_message_id=reply_to_message_id,
   )
   return network.push_update(token, {"message": message})

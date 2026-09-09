@@ -814,6 +814,8 @@ class Network:
     if thread is None:
       raise KeyError(chat_id)
     msg = dict(message)
+    if "from" not in msg:
+      msg["from"] = dict(bot.user)
     msg["message_id"] = max((m.get("message_id", 0) for m in thread), default=0) + 1
     msg["date"] = int(time.time())
     thread.append(msg)

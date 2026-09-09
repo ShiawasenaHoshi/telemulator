@@ -2,7 +2,7 @@ VENV   := .venv
 PY     := $(VENV)/bin/python
 PYTEST := $(VENV)/bin/pytest
 N      := 4
-IMAGE  := ghcr.io/shiawasenahoshi/telemulator/emulator:0.2.1
+IMAGE  := ghcr.io/shiawasenahoshi/telemulator/emulator:0.3.0
 
 .DEFAULT_GOAL := help
 

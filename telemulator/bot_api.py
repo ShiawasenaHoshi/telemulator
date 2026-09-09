@@ -776,11 +776,15 @@ HANDLERS = {
 }
 
 
-@router.post("/bot{token}/{method}")
+@router.api_route("/bot{token}/{method}", methods=["GET", "POST"])
 async def call(token: str, method: str, request: Request) -> Response:
   network: Network = request.app.state.network
-  form = await request.form()
-  params: dict[str, Any] = {key: form[key] for key in form}
+  # A GET carries its arguments in the query string; pyTelegramBotAPI sends
+  # most methods that way. A body, when there is one, is the stronger source.
+  params: dict[str, Any] = dict(request.query_params)
+  if request.method == "POST":
+    form = await request.form()
+    params.update({key: form[key] for key in form})
   runtime = ensure_bot(network, token)
   if runtime is None:
     return _err(*bot_error(401, UNAUTHORIZED))
