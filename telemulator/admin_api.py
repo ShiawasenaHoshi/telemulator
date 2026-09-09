@@ -236,10 +236,19 @@ async def admin_push_message(token: str, body: dict[str, Any], request: Request)
   chat_id = int(body["chat_id"])
   if chat_id not in net.users:
     net.create_user(id=chat_id, first_name="Compose")
-  net.ensure_private_chat(chat_id, runtime.user["id"])
-  update_id = net.push_update(
-    token,
-    {
+  if "update" in body:
+    payload = body["update"]
+    msg = payload.get("message") or payload.get("edited_message")
+    if msg is not None:
+      from_id = int(msg["from"]["id"])
+      if from_id not in net.users:
+        net.create_user(id=from_id, first_name="Compose")
+      chat = msg.get("chat", {})
+      if chat.get("type") == "private":
+        net.ensure_private_chat(int(chat["id"]), runtime.user["id"])
+  else:
+    net.ensure_private_chat(chat_id, runtime.user["id"])
+    payload = {
       "message": {
         "message_id": 1,
         "date": int(time.time()),
@@ -247,8 +256,8 @@ async def admin_push_message(token: str, body: dict[str, Any], request: Request)
         "from": {"id": chat_id, "is_bot": False, "first_name": "Compose"},
         "text": body["text"],
       }
-    },
-  )
+    }
+  update_id = net.push_update(token, payload)
   return {"update_id": update_id}
 
 
