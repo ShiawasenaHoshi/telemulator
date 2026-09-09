@@ -15,7 +15,11 @@ The immediate consumer is a pair of Telegram bots on Python 3.8 whose behaviour 
 
 The User API — the surface the web client already uses — covers most of it. `POST /user/chats/{peer_id}/messages` goes through `user_api.send_text`, so an inbound message gets an honest `message_id` from `_append_inbound` and accepts `reply_to_message_id`. `GET /user/chats/{peer_id}/messages` returns the stored messages together with the reply keyboard, and stored messages carry `reply_markup`, so a screen can be rebuilt in full. Buttons are pressable by `callback_data`. Files are readable.
 
-Three gaps:
+Four gaps:
+
+0. **A reply to a bot is dropped in a private chat.** `send_text` accepts `reply_to_message_id` and honours it — but only in the branch for groups and channels, where the thread lives in `network.chats`. A dialog with a bot lives in `network.bot_chats`, reaches `_append_inbound`, and the field never arrives. `send_photo` and `send_document` do not take the parameter at all.
+
+   This is a behaviour gap, not a routing one, and it is the one that blocks real work: a bot whose interface is "answer your own message to act on it" cannot be tested at all. The immediate consumer has two such flows — deleting a transaction by replying `delete` to it, and attaching a receipt by replying with a photo.
 
 1. **Media has no route.** `user_api.send_photo` and `send_document` are reachable only in-process. Nothing needs uploading — both functions synthesise the file and register its bytes in `network.files` — so this is an ordinary JSON call, not multipart.
 
@@ -33,9 +37,9 @@ All additive. Existing fields keep their names and meanings; the web client is u
 
 | Route | Body | Returns |
 |---|---|---|
-| `POST /user/chats/{peer_id}/photos` | `{"file_id": "user-photo-1"}` | `{"update_id": int}` |
-| `POST /user/chats/{peer_id}/documents` | `{"file_id": "user-doc-1", "file_name": "certificate.pdf"}` | `{"update_id": int}` |
-| `POST /user/chats/{peer_id}/messages` | unchanged | `{"message": …, "update_id": int}` |
+| `POST /user/chats/{peer_id}/photos` | `{"file_id": "user-photo-1", "reply_to_message_id": int \| null}` | `{"update_id": int}` |
+| `POST /user/chats/{peer_id}/documents` | `{"file_id": "user-doc-1", "file_name": "certificate.pdf", "reply_to_message_id": int \| null}` | `{"update_id": int}` |
+| `POST /user/chats/{peer_id}/messages` | unchanged; `reply_to_message_id` starts working for bot dialogs | `{"message": …, "update_id": int}` |
 | `POST …/messages/{message_id}/press` | unchanged | `{"query_id": str, "update_id": int}` |
 | `GET /user/chats/{peer_id}/acks/{update_id}?timeout=10` | — | `{"acked": bool}` |
 
@@ -59,6 +63,8 @@ Method for method it matches `UserClient`:
 | `send_to(peer_id, text)` | same |
 | `screen()`, `messages()` | **`async`** — they cross the wire |
 
+`send`, `send_photo` and `send_document` gain a `reply_to_message_id` argument on **both** clients: gap 0 is fixed in `user_api`, below the client layer, so the in-process client would otherwise be the one left unable to reply.
+
 Making `screen()` and `messages()` awaitable is the one difference the two surfaces cannot hide, and pretending otherwise would mean caching state that another process is changing. Everything else, including `press` resolving a label to `callback_data` from the last message that carries it, behaves as it does in-process.
 
 Construction takes a base URL, a user id and a bot id, and needs the user and the dialog to exist. An explicit `open()` creates the user (`POST /admin/users`), the dialog (`POST /admin/dialogs`) and the session (`POST /user/sessions`), then holds the session token as a bearer. Not a constructor: it does I/O.
@@ -74,6 +80,7 @@ Construction takes a base URL, a user id and a bot id, and needs the user and th
 
 ## 4. Acceptance
 
+- A reply in a private bot chat reaches the bot with `reply_to_message` and `reply_to_message_id` populated — for text, for a photo and for a document, through both clients.
 - The new routes are covered by tests in the style of `tests/test_user_http.py`: ASGI transport, no sockets.
 - `RemoteUserClient` has a test that drives a real dialog against `create_app()` over ASGI transport and asserts the same things `tests/test_user_client.py` asserts in-process, including a `BotSilentError` case.
 - A photo sent through the new route arrives at the bot as the same ladder of sizes `tests/test_user_media.py` already pins, and its bytes are fetchable by `file_id`.

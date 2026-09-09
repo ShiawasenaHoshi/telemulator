@@ -4,7 +4,7 @@
 
 **Goal:** Let a test drive a dialog against a bot that runs in another process, with the same guarantees the in-process `UserClient` gives.
 
-**Architecture:** Three additive User API routes plus two extra response fields close the gaps: media, the `update_id` that `send_text` and `press_callback` already return, and an awaited offset acknowledgement. `RemoteUserClient` then speaks those routes over `httpx` and reuses `Screen`, `SentMessage` and `BotSilentError` instead of restating them. Message parsing moves out of `BotView` into module-level helpers so both clients share one implementation.
+**Architecture:** One behaviour fix and three additive routes close the gaps. The fix: a reply in a private bot chat currently loses `reply_to_message_id`, because `send_text` only honours it on the groups branch. The routes: media, the `update_id` that `send_text` and `press_callback` already return, and an awaited offset acknowledgement. `RemoteUserClient` then speaks those routes over `httpx` and reuses `Screen`, `SentMessage` and `BotSilentError` instead of restating them. Message parsing moves out of `BotView` into module-level helpers so both clients share one implementation.
 
 **Tech Stack:** FastAPI, httpx, pytest with `asyncio_mode = auto`, ASGI transport in tests (no sockets).
 
@@ -26,16 +26,19 @@
 
 | File | Responsibility |
 |---|---|
+| `telemulator/user_api.py` | Replies in private bot chats; `reply_to_message_id` on media |
+| `telemulator/client.py` | In-process client gains the same reply argument |
 | `telemulator/user_http.py` | New routes; `update_id` added to two responses |
 | `telemulator/view.py` | `sent_from_stored` and `is_bot_message` extracted to module level |
 | `telemulator/remote.py` | `RemoteUserClient` |
 | `telemulator/__init__.py` | Export `RemoteUserClient` |
+| `tests/test_private_reply.py` | Replies at the `user_api` level and through `UserClient` |
 | `tests/test_user_http.py` | `update_id` and ack route |
 | `tests/test_user_media.py` | HTTP media routes next to the existing Python-level tests |
 | `tests/test_remote_client.py` | The client, driven over ASGI transport |
 | `README.md`, `pyproject.toml`, `Makefile` | Release 0.3.0 |
 
-Order: Task 1 → 2 → 3 are independent route work and may go in any order; Task 4 consumes all three; Task 5 is last.
+Order: Tasks 1–4 change the emulator. Task 3 needs Task 2, because the media routes carry the reply parameter that Task 2 introduces; Task 1 is independent of both. Task 5 consumes all of them, Task 6 is last.
 
 ---
 
@@ -120,15 +123,256 @@ Both values were already produced and thrown away."
 
 ---
 
-### Task 2: HTTP routes for photos and documents
+### Task 2: Replies in a private bot chat
+
+**Files:**
+- Modify: `telemulator/user_api.py:52-62` and the tail of `send_text`, `send_photo`, `send_document`
+- Modify: `telemulator/client.py`
+- Test: `tests/test_private_reply.py`
+
+**Interfaces:**
+- Consumes: `network.bot_chats`, `network.ensure_private_chat`
+- Produces: `_append_inbound(network, user_id, bot_id, fields, *, reply_to_message_id: int | None = None)`; `send_text` honouring the argument for bot dialogs; `send_photo(network, user_id, peer_id, *, file_id, reply_to_message_id=None)`; `send_document(network, user_id, peer_id, *, file_id, file_name, reply_to_message_id=None)`; `UserClient.send`, `send_photo`, `send_document` all accepting `reply_to_message_id`. Task 3 exposes it over HTTP for media; Task 5 uses all of it.
+
+`send_text` already takes `reply_to_message_id`, and honours it — but only where the thread lives in `network.chats`, which is groups and channels. A dialog with a bot lives in `network.bot_chats` and leaves through `_append_inbound`, where the argument never arrives. A bot whose interface is "answer your own message to act on it" is therefore untestable today.
+
+- [ ] **Step 1: Write the failing tests**
+
+`tests/test_private_reply.py`:
+
+```python
+from __future__ import annotations
+
+from telemulator.network import Network
+from telemulator.user_api import send_document, send_photo, send_text
+
+TOKEN = "111111111:AAFakeBotTokenForE2ETests0000000"
+BOT_ID = 111111111
+USER_ID = 9
+
+
+def _network() -> Network:
+  net = Network()
+  net.create_user(id=USER_ID, first_name="Test")
+  net.create_bot(token=TOKEN)
+  net.ensure_private_chat(USER_ID, BOT_ID)
+  return net
+
+
+def _last(net: Network) -> dict:
+  """The newest message in the dialog, read from the store rather than the queue."""
+  return net.bot_chats[(USER_ID, BOT_ID)][-1]
+
+
+async def test_a_reply_to_your_own_message_reaches_the_bot() -> None:
+  net = _network()
+  send_text(net, USER_ID, BOT_ID, "100 food")
+  origin = _last(net)
+
+  send_text(net, USER_ID, BOT_ID, "delete", reply_to_message_id=origin["message_id"])
+
+  reply = _last(net)
+  assert reply["reply_to_message_id"] == origin["message_id"]
+  assert reply["reply_to_message"]["text"] == "100 food"
+  # A bot framework reads chat off the quoted message when it parses an update.
+  assert reply["reply_to_message"]["chat"]["id"] == USER_ID
+
+
+async def test_a_reply_to_the_bot_carries_a_chat() -> None:
+  net = _network()
+  bot_msg = net.append_bot_message(TOKEN, USER_ID, {"text": "Saved"})
+
+  send_text(net, USER_ID, BOT_ID, "delete", reply_to_message_id=bot_msg["message_id"])
+
+  # Bot messages are stored without a chat field; the quote must still have one.
+  assert _last(net)["reply_to_message"]["chat"]["id"] == USER_ID
+
+
+async def test_media_can_reply_too() -> None:
+  net = _network()
+  send_text(net, USER_ID, BOT_ID, "100 food")
+  origin_id = _last(net)["message_id"]
+
+  send_photo(net, USER_ID, BOT_ID, file_id="receipt", reply_to_message_id=origin_id)
+  assert _last(net)["reply_to_message"]["text"] == "100 food"
+
+  send_document(
+    net,
+    USER_ID,
+    BOT_ID,
+    file_id="scan",
+    file_name="r.pdf",
+    reply_to_message_id=origin_id,
+  )
+  assert _last(net)["reply_to_message"]["text"] == "100 food"
+
+
+async def test_an_unknown_reply_target_is_ignored() -> None:
+  net = _network()
+  send_text(net, USER_ID, BOT_ID, "hi", reply_to_message_id=9999)
+  assert "reply_to_message" not in _last(net)
+```
+
+- [ ] **Step 2: Run and watch them fail**
+
+Run: `.venv/bin/pytest tests/test_private_reply.py -q`
+Expected: the first three FAIL — `KeyError: 'reply_to_message'` for text, `TypeError: unexpected keyword argument 'reply_to_message_id'` for photo and document. The fourth passes already, and must keep passing.
+
+- [ ] **Step 3: Carry the reply through `_append_inbound`**
+
+```python
+def _append_inbound(
+  network: Network,
+  user_id: int,
+  bot_id: int,
+  fields: dict[str, Any],
+  *,
+  reply_to_message_id: int | None = None,
+) -> dict[str, Any]:
+  chat = network.ensure_private_chat(user_id, bot_id)
+  thread = network.bot_chats[(user_id, bot_id)]
+  message = dict(fields)
+  if reply_to_message_id is not None:
+    origin = next(
+      (m for m in thread if m.get("message_id") == reply_to_message_id), None
+    )
+    if origin is not None:
+      quoted = dict(origin)
+      # Messages the bot sent are stored without a chat — it is added only on
+      # the way out to the feed. In a private chat every message shares one.
+      quoted.setdefault("chat", chat)
+      message["reply_to_message"] = quoted
+      message["reply_to_message_id"] = reply_to_message_id
+  message["message_id"] = max((m.get("message_id", 0) for m in thread), default=0) + 1
+  message["date"] = int(time.time())
+  message.setdefault("chat", chat)
+  thread.append(message)
+  return message
+```
+
+An unknown `reply_to_message_id` stays silent, matching what the groups branch already does.
+
+- [ ] **Step 4: Pass it in from the three senders**
+
+At the tail of `send_text`, where the bot branch calls `_append_inbound`:
+
+```python
+  message = _append_inbound(
+    network,
+    user_id,
+    peer_id,
+    {"from": dict(user), "text": text},
+    reply_to_message_id=reply_to_message_id,
+  )
+  return network.push_update(token, {"message": message})
+```
+
+In `send_document`, add the parameter to the signature and the call:
+
+```python
+def send_document(
+  network: Network,
+  user_id: int,
+  peer_id: int,
+  *,
+  file_id: str = "user-doc-1",
+  file_name: str = "certificate.pdf",
+  reply_to_message_id: int | None = None,
+) -> int:
+```
+
+```python
+  message = _append_inbound(
+    network,
+    user_id,
+    peer_id,
+    {
+      "from": dict(user),
+      "document": {
+        "file_id": file_id,
+        "file_unique_id": file_id,
+        "file_name": file_name,
+        "file_size": 17,
+      },
+    },
+    reply_to_message_id=reply_to_message_id,
+  )
+```
+
+Do the same for `send_photo`: `reply_to_message_id: int | None = None` in the signature, passed through to its `_append_inbound` call.
+
+- [ ] **Step 5: Run the new tests and the neighbours**
+
+Run: `.venv/bin/pytest tests/test_private_reply.py tests/test_user_media.py tests/test_p2p.py tests/test_groups.py -q`
+Expected: PASS. `test_groups.py` guards the branch that already handled replies.
+
+- [ ] **Step 6: Give the in-process client the same argument**
+
+In `telemulator/client.py`, add `reply_to_message_id: int | None = None` to `send`, `send_photo` and `send_document`, and pass it to the matching `user_api` call. For `send`:
+
+```python
+  async def send(
+    self,
+    text: str,
+    *,
+    timeout: float = DEFAULT_TIMEOUT,
+    expect_reply: bool = True,
+    reply_to_message_id: int | None = None,
+  ) -> Screen | None:
+    before = len(self.messages())
+    update_id = send_text(
+      self._view.network,
+      self.user_id,
+      self._view.bot_id,
+      text,
+      reply_to_message_id=reply_to_message_id,
+    )
+```
+
+The rest of each method is unchanged.
+
+- [ ] **Step 7: Cover the client surface**
+
+Append to `tests/test_private_reply.py`:
+
+```python
+async def test_user_client_can_reply(...) -> None:
+  """The in-process client must not be the one left unable to reply."""
+```
+
+Write it against `TelemulatorServer` in the style of `tests/test_user_client.py`: send a message, take its `message_id` from `net.bot_chats`, send a second with `reply_to_message_id`, assert the bot's update carries the quote. Keep the bot side a stub that acknowledges the offset, exactly as that file already does.
+
+- [ ] **Step 8: Run the suite**
+
+Run: `make test`
+Expected: PASS with the coverage gate green.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add telemulator/user_api.py telemulator/client.py tests/test_private_reply.py
+git commit -m "fix: carry reply_to_message_id into private bot chats
+
+send_text honoured the field only where the thread lives in chats, which is
+groups and channels. A dialog with a bot goes through _append_inbound, and
+the reply was dropped; media never took the argument at all.
+
+A bot whose interface is 'answer your own message to act on it' could not
+be tested. The quoted message also gets a chat: bot messages are stored
+without one, and a framework reads chat off the quote."
+```
+
+---
+
+### Task 3: HTTP routes for photos and documents
 
 **Files:**
 - Modify: `telemulator/user_http.py`
 - Test: `tests/test_user_media.py`
 
 **Interfaces:**
-- Consumes: `user_api.send_photo(network, user_id, peer_id, *, file_id)` and `user_api.send_document(network, user_id, peer_id, *, file_id, file_name)`, both returning `int`
-- Produces: `POST /user/chats/{peer_id}/photos` and `POST /user/chats/{peer_id}/documents`, each `{"update_id": int}`. Task 4 calls them from `send_photo` and `send_document`.
+- Consumes: `user_api.send_photo(network, user_id, peer_id, *, file_id, reply_to_message_id)` and `user_api.send_document(network, user_id, peer_id, *, file_id, file_name, reply_to_message_id)` from Task 2, both returning `int`
+- Produces: `POST /user/chats/{peer_id}/photos` and `POST /user/chats/{peer_id}/documents`, each taking an optional `reply_to_message_id` and returning `{"update_id": int}`. Task 5 calls them from `send_photo` and `send_document`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -179,6 +423,23 @@ async def test_document_route_carries_the_file_name() -> None:
     assert update["message"]["document"]["file_name"] == "receipt.pdf"
 
 
+async def test_a_photo_can_answer_an_earlier_message() -> None:
+  app = create_app()
+  async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
+    await _dialog(client)
+    sent = await client.post("/user/chats/111111111/messages", json={"text": "100 food"})
+    origin_id = sent.json()["message"]["message_id"]
+
+    await client.post(
+      "/user/chats/111111111/photos",
+      json={"file_id": "receipt", "reply_to_message_id": origin_id},
+    )
+
+    net = app.state.network
+    updates = await net.take_updates(TOKEN, None, 0.0)
+    assert updates[-1]["message"]["reply_to_message"]["text"] == "100 food"
+
+
 async def test_media_routes_reject_a_peer_that_is_not_a_bot() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
@@ -204,8 +465,15 @@ async def post_photo(peer_id: int, request: Request, body: dict[str, Any]) -> di
   net = _net(request)
   viewer_id = _viewer_id(request)
   file_id = str(body.get("file_id") or "user-photo-1")
+  reply_to = body.get("reply_to_message_id")
   try:
-    update_id = send_photo(net, viewer_id, peer_id, file_id=file_id)
+    update_id = send_photo(
+      net,
+      viewer_id,
+      peer_id,
+      file_id=file_id,
+      reply_to_message_id=int(reply_to) if reply_to is not None else None,
+    )
   except KeyError as exc:
     raise HTTPException(status_code=400, detail="peer is not a bot") from exc
   return {"update_id": update_id}
@@ -217,8 +485,16 @@ async def post_document(peer_id: int, request: Request, body: dict[str, Any]) ->
   viewer_id = _viewer_id(request)
   file_id = str(body.get("file_id") or "user-doc-1")
   file_name = str(body.get("file_name") or "certificate.pdf")
+  reply_to = body.get("reply_to_message_id")
   try:
-    update_id = send_document(net, viewer_id, peer_id, file_id=file_id, file_name=file_name)
+    update_id = send_document(
+      net,
+      viewer_id,
+      peer_id,
+      file_id=file_id,
+      file_name=file_name,
+      reply_to_message_id=int(reply_to) if reply_to is not None else None,
+    )
   except KeyError as exc:
     raise HTTPException(status_code=400, detail="peer is not a bot") from exc
   return {"update_id": update_id}
@@ -244,7 +520,7 @@ a bot that reads attachments."
 
 ---
 
-### Task 3: Await the offset acknowledgement over HTTP
+### Task 4: Await the offset acknowledgement over HTTP
 
 **Files:**
 - Modify: `telemulator/user_http.py`
@@ -252,7 +528,7 @@ a bot that reads attachments."
 
 **Interfaces:**
 - Consumes: `network.wait_acked(token, update_id, timeout) -> bool`, and `user_api._token_for_bot(network, bot_id) -> str | None`
-- Produces: `GET /user/chats/{peer_id}/acks/{update_id}?timeout=<float>` → `{"acked": bool}`. Task 4 calls it from `_wait`.
+- Produces: `GET /user/chats/{peer_id}/acks/{update_id}?timeout=<float>` → `{"acked": bool}`. Task 5 calls it from `_wait`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -333,7 +609,7 @@ no way to."
 
 ---
 
-### Task 4: `RemoteUserClient`
+### Task 5: `RemoteUserClient`
 
 **Files:**
 - Modify: `telemulator/view.py:77-96`
@@ -341,8 +617,8 @@ no way to."
 - Test: `tests/test_remote_client.py`
 
 **Interfaces:**
-- Consumes: every route from Tasks 1–3; `Screen`, `BotSilentError`, `DEFAULT_TIMEOUT`, `SILENT_DUMP_CALLS` from `telemulator.client`; `SentMessage` and `parse_markup` from `telemulator.view`
-- Produces: `RemoteUserClient(base_url: str, user_id: int, bot_token: str, *, first_name: str = "Test", transport: httpx.AsyncBaseTransport | None = None)` with `await open()`, `await send(text, *, timeout, expect_reply)`, `await press(label, *, timeout)`, `await press_callback(data, *, timeout)`, `await send_photo(*, file_id, timeout, expect_reply)`, `await send_document(*, file_id, file_name, timeout, expect_reply)`, `await send_to(peer_id, text)`, `await screen()`, `await messages()`, `await aclose()`. Task 5 exports it.
+- Consumes: every route from Tasks 1–4; `Screen`, `BotSilentError`, `DEFAULT_TIMEOUT`, `SILENT_DUMP_CALLS` from `telemulator.client`; `SentMessage` and `parse_markup` from `telemulator.view`
+- Produces: `RemoteUserClient(base_url: str, user_id: int, bot_token: str, *, first_name: str = "Test", transport: httpx.AsyncBaseTransport | None = None)` with `await open()`, `await send(text, *, timeout, expect_reply, reply_to_message_id)`, `await press(label, *, timeout)`, `await press_callback(data, *, timeout)`, `await send_photo(*, file_id, timeout, expect_reply, reply_to_message_id)`, `await send_document(*, file_id, file_name, timeout, expect_reply, reply_to_message_id)`, `await send_to(peer_id, text)`, `await screen()`, `await messages()`, `await aclose()`. Task 6 exports it.
 
 - [ ] **Step 1: Extract message parsing to module level**
 
@@ -612,11 +888,17 @@ class RemoteUserClient:
     response.raise_for_status()
 
   async def send(
-    self, text: str, *, timeout: float = DEFAULT_TIMEOUT, expect_reply: bool = True
+    self,
+    text: str,
+    *,
+    timeout: float = DEFAULT_TIMEOUT,
+    expect_reply: bool = True,
+    reply_to_message_id: int | None = None,
   ) -> Screen | None:
     before = len(await self.messages())
     response = await self._http.post(
-      f"/user/chats/{self.bot_id}/messages", json={"text": text}
+      f"/user/chats/{self.bot_id}/messages",
+      json={"text": text, "reply_to_message_id": reply_to_message_id},
     )
     response.raise_for_status()
     update_id = response.json()["update_id"]
@@ -665,11 +947,13 @@ class RemoteUserClient:
     file_id: str = "user-photo-1",
     timeout: float = DEFAULT_TIMEOUT,
     expect_reply: bool = True,
+    reply_to_message_id: int | None = None,
   ) -> Screen | None:
     """User sends a photo; the bot will fetch it back via getFile."""
     before = len(await self.messages())
     response = await self._http.post(
-      f"/user/chats/{self.bot_id}/photos", json={"file_id": file_id}
+      f"/user/chats/{self.bot_id}/photos",
+      json={"file_id": file_id, "reply_to_message_id": reply_to_message_id},
     )
     response.raise_for_status()
     if not expect_reply:
@@ -684,12 +968,17 @@ class RemoteUserClient:
     file_name: str = "certificate.pdf",
     timeout: float = DEFAULT_TIMEOUT,
     expect_reply: bool = True,
+    reply_to_message_id: int | None = None,
   ) -> Screen | None:
     """User sends a document; the bot will fetch it back via getFile."""
     before = len(await self.messages())
     response = await self._http.post(
       f"/user/chats/{self.bot_id}/documents",
-      json={"file_id": file_id, "file_name": file_name},
+      json={
+        "file_id": file_id,
+        "file_name": file_name,
+        "reply_to_message_id": reply_to_message_id,
+      },
     )
     response.raise_for_status()
     if not expect_reply:
@@ -753,7 +1042,7 @@ Message parsing moves to module level so both clients share one implementation."
 
 ---
 
-### Task 5: Export, document, release 0.3.0
+### Task 6: Export, document, release 0.3.0
 
 **Files:**
 - Modify: `telemulator/__init__.py`
@@ -763,7 +1052,7 @@ Message parsing moves to module level so both clients share one implementation."
 - Test: `tests/test_app.py`
 
 **Interfaces:**
-- Consumes: `RemoteUserClient` from Task 4
+- Consumes: `RemoteUserClient` from Task 5
 - Produces: `from telemulator import RemoteUserClient`; image tag `ghcr.io/shiawasenahoshi/telemulator/emulator:0.3.0`
 
 - [ ] **Step 1: Write the failing export test**
