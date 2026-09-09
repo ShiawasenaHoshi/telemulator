@@ -132,6 +132,35 @@ async def test_message_and_press_return_the_update_id() -> None:
     assert again.json()["update_id"] > first
 
 
+async def test_ack_route_reports_whether_the_bot_finished_the_update() -> None:
+  app = create_app()
+  async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/bots", json={"token": TOKEN, "first_name": "Demo"})
+    await client.post("/admin/dialogs", json={"user_id": 1, "bot_token": TOKEN})
+    await client.post("/user/sessions", json={"user_id": 1})
+
+    sent = await client.post("/user/chats/111111111/messages", json={"text": "hi"})
+    update_id = sent.json()["update_id"]
+
+    # Nobody is polling, so the update is never acknowledged.
+    pending = await client.get(
+      f"/user/chats/111111111/acks/{update_id}", params={"timeout": 0.1}
+    )
+    assert pending.status_code == 200
+    assert pending.json() == {"acked": False}
+
+    # A bot that reads and confirms the offset marks it done.
+    net = app.state.network
+    await net.take_updates(TOKEN, None, 0.0)
+    await net.take_updates(TOKEN, update_id + 1, 0.0)
+
+    done = await client.get(
+      f"/user/chats/111111111/acks/{update_id}", params={"timeout": 1.0}
+    )
+    assert done.json() == {"acked": True}
+
+
 async def test_send_photo_bytes_are_downloadable_via_user_files() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
