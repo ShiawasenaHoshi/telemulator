@@ -11,7 +11,7 @@ It stops working when the bot cannot be imported. This package requires Python 3
 
 Neither half of that arrangement is actually finished. The bot half works for a framework that POSTs — aiogram does — but `/bot{token}/{method}` is declared POST-only, and pyTelegramBotAPI sends GET for most methods, `getUpdates` and `sendMessage` among them. The user half does not exist at all: from outside the process there is no way to *be* the user.
 
-The immediate consumer is a pair of Telegram bots on Python 3.8 whose behaviour has to be pinned by tests before they are rewritten. The general case is any bot a test cannot import: another interpreter, another language, a binary.
+The general case is any bot a test cannot import: another interpreter, another language, a binary.
 
 ## 2. What is missing
 
@@ -23,7 +23,7 @@ Five gaps.
 
 1. **A reply to a bot is dropped in a private chat.** `send_text` accepts `reply_to_message_id` and honours it — but only in the branch for groups and channels, where the thread lives in `network.chats`. A dialog with a bot lives in `network.bot_chats`, reaches `_append_inbound`, and the field never arrives. `send_photo` and `send_document` do not take the parameter at all.
 
-   This is a behaviour gap, not a routing one, and it is the one that blocks real work: a bot whose interface is "answer your own message to act on it" cannot be tested at all. The immediate consumer has two such flows — deleting a transaction by replying `delete` to it, and attaching a receipt by replying with a photo.
+   This is a behaviour gap, not a routing one, and it is the one that blocks real work: a bot whose interface is "answer your own message to act on it" cannot be tested at all — for example, replying to an earlier bot message with text or an attachment.
 
 2. **Media has no route.** `user_api.send_photo` and `send_document` are reachable only in-process. Nothing needs uploading — both functions synthesise the file and register its bytes in `network.files` — so this is an ordinary JSON call, not multipart.
 

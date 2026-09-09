@@ -1262,7 +1262,7 @@ Makefile IMAGE was a release behind and is realigned."
 git tag v0.3.0
 ```
 
-Do not push the tag or the branch without being asked. The consumer pins this tag from `test/e2e/requirements.txt` in each bot repository.
+Do not push the tag or the branch without being asked. Downstream projects can pin this tag in their test requirements.
 
 ---
 
