@@ -4,7 +4,7 @@
 
 **Goal:** Let a test drive a dialog against a bot that runs in another process, with the same guarantees the in-process `UserClient` gives.
 
-**Architecture:** One behaviour fix and three additive routes close the gaps. The fix: a reply in a private bot chat currently loses `reply_to_message_id`, because `send_text` only honours it on the groups branch. The routes: media, the `update_id` that `send_text` and `press_callback` already return, and an awaited offset acknowledgement. `RemoteUserClient` then speaks those routes over `httpx` and reuses `Screen`, `SentMessage` and `BotSilentError` instead of restating them. Message parsing moves out of `BotView` into module-level helpers so both clients share one implementation.
+**Architecture:** Two behaviour fixes and three additive routes close the gaps. The first fix is the gate: `/bot{token}/{method}` is declared POST-only and reads `await request.form()`, while pyTelegramBotAPI sends GET for most methods, so a bot built on it gets 405 and never polls. The fix: a reply in a private bot chat currently loses `reply_to_message_id`, because `send_text` only honours it on the groups branch. The routes: media, the `update_id` that `send_text` and `press_callback` already return, and an awaited offset acknowledgement. `RemoteUserClient` then speaks those routes over `httpx` and reuses `Screen`, `SentMessage` and `BotSilentError` instead of restating them. Message parsing moves out of `BotView` into module-level helpers so both clients share one implementation.
 
 **Tech Stack:** FastAPI, httpx, pytest with `asyncio_mode = auto`, ASGI transport in tests (no sockets).
 
@@ -26,23 +26,140 @@
 
 | File | Responsibility |
 |---|---|
+| `telemulator/bot_api.py` | `/bot{token}/{method}` answers GET as well as POST |
 | `telemulator/user_api.py` | Replies in private bot chats; `reply_to_message_id` on media |
 | `telemulator/client.py` | In-process client gains the same reply argument |
 | `telemulator/user_http.py` | New routes; `update_id` added to two responses |
 | `telemulator/view.py` | `sent_from_stored` and `is_bot_message` extracted to module level |
 | `telemulator/remote.py` | `RemoteUserClient` |
 | `telemulator/__init__.py` | Export `RemoteUserClient` |
+| `tests/test_bot_api_get.py` | GET on the Bot API |
 | `tests/test_private_reply.py` | Replies at the `user_api` level and through `UserClient` |
 | `tests/test_user_http.py` | `update_id` and ack route |
 | `tests/test_user_media.py` | HTTP media routes next to the existing Python-level tests |
 | `tests/test_remote_client.py` | The client, driven over ASGI transport |
 | `README.md`, `pyproject.toml`, `Makefile` | Release 0.3.0 |
 
-Order: Tasks 1–4 change the emulator. Task 3 needs Task 2, because the media routes carry the reply parameter that Task 2 introduces; Task 1 is independent of both. Task 5 consumes all of them, Task 6 is last.
+Order: Task 1 comes first — without it a bot on pyTelegramBotAPI cannot reach the emulator at all, so nothing downstream can be observed. Tasks 2–5 then change the emulator; Task 4 needs Task 3, because the media routes carry the reply parameter Task 3 introduces. Task 6 consumes all of them, Task 7 is last.
 
 ---
 
-### Task 1: Return `update_id` from the message and press routes
+### Task 1: Accept GET on the Bot API
+
+**Files:**
+- Modify: `telemulator/bot_api.py:779-783`
+- Test: `tests/test_bot_api_get.py`
+
+**Interfaces:**
+- Consumes: nothing new
+- Produces: `/bot{token}/{method}` answering GET as well as POST, with arguments read from the query string. Every task after this one depends on it — a bot on pyTelegramBotAPI cannot poll otherwise, so nothing downstream can be observed end to end.
+
+The route is declared `@router.post` and reads its arguments with `await request.form()`. pyTelegramBotAPI 3.7.9 spells `method='post'` in 36 places and leaves the default, GET, everywhere else — `getUpdates` and `sendMessage` included. aiogram POSTs everything, which is why this has never surfaced.
+
+- [ ] **Step 1: Write the failing tests**
+
+`tests/test_bot_api_get.py`:
+
+```python
+from __future__ import annotations
+
+from httpx import ASGITransport, AsyncClient
+
+from telemulator import create_app
+
+TOKEN = "111111111:AAFakeBotTokenForE2ETests0000000"
+BOT_ID = 111111111
+USER_ID = 9
+
+
+async def _dialog(client: AsyncClient) -> None:
+  await client.post("/admin/users", json={"id": USER_ID, "first_name": "Test"})
+  await client.post("/admin/bots", json={"token": TOKEN, "first_name": "Demo"})
+  await client.post("/admin/dialogs", json={"user_id": USER_ID, "bot_token": TOKEN})
+
+
+async def test_get_updates_answers_a_get_request() -> None:
+  """pyTelegramBotAPI sends GET for most methods, getUpdates among them."""
+  app = create_app()
+  async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
+    await _dialog(client)
+
+    answered = await client.get(f"/bot{TOKEN}/getUpdates", params={"timeout": "0"})
+
+    assert answered.status_code == 200
+    assert answered.json()["ok"] is True
+
+
+async def test_send_message_over_get_reads_the_query_string() -> None:
+  app = create_app()
+  async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
+    await _dialog(client)
+
+    sent = await client.get(
+      f"/bot{TOKEN}/sendMessage", params={"chat_id": str(USER_ID), "text": "hi"}
+    )
+
+    assert sent.status_code == 200
+    assert sent.json()["ok"] is True
+    assert app.state.network.bot_chats[(USER_ID, BOT_ID)][-1]["text"] == "hi"
+
+
+async def test_a_post_body_still_wins_over_the_query_string() -> None:
+  app = create_app()
+  async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
+    await _dialog(client)
+
+    await client.post(
+      f"/bot{TOKEN}/sendMessage?text=from-query",
+      data={"chat_id": str(USER_ID), "text": "from-body"},
+    )
+
+    assert app.state.network.bot_chats[(USER_ID, BOT_ID)][-1]["text"] == "from-body"
+```
+
+- [ ] **Step 2: Run and watch them fail**
+
+Run: `.venv/bin/pytest tests/test_bot_api_get.py -q`
+Expected: the two GET tests FAIL with `405`. The POST test passes already and must keep passing.
+
+- [ ] **Step 3: Accept both methods**
+
+In `telemulator/bot_api.py`, replace the decorator and the two argument lines:
+
+```python
+@router.api_route("/bot{token}/{method}", methods=["GET", "POST"])
+async def call(token: str, method: str, request: Request) -> Response:
+  network: Network = request.app.state.network
+  # A GET carries its arguments in the query string; pyTelegramBotAPI sends
+  # most methods that way. A body, when there is one, is the stronger source.
+  params: dict[str, Any] = dict(request.query_params)
+  if request.method == "POST":
+    form = await request.form()
+    params.update({key: form[key] for key in form})
+```
+
+The rest of the handler is unchanged: query values arrive as strings, exactly as form values already did.
+
+- [ ] **Step 4: Run the file and the suite**
+
+Run: `.venv/bin/pytest tests/test_bot_api_get.py -q && make test`
+Expected: PASS. `tests/test_smoke.py`, `tests/test_limits.py` and `tests/test_journal.py` all drive the same route over POST and are the guard that nothing regressed.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add telemulator/bot_api.py tests/test_bot_api_get.py
+git commit -m "fix: answer GET on the Bot API, not only POST
+
+The route read await request.form(), which a GET has no body for.
+pyTelegramBotAPI spells method='post' in 36 places and defaults to GET
+everywhere else, so a bot built on it got 405 and never polled. aiogram
+POSTs everything, which is why this stayed hidden."
+```
+
+---
+
+### Task 2: Return `update_id` from the message and press routes
 
 **Files:**
 - Modify: `telemulator/user_http.py:191-222`
@@ -50,7 +167,7 @@ Order: Tasks 1–4 change the emulator. Task 3 needs Task 2, because the media r
 
 **Interfaces:**
 - Consumes: `user_api.send_text` and `user_api._press`, which already produce the update id
-- Produces: `POST /user/chats/{peer_id}/messages` → `{"message": …, "update_id": int}`; `POST /user/chats/{peer_id}/messages/{message_id}/press` → `{"query_id": str, "update_id": int}`. Task 3 waits on these ids; Task 4 passes them to the ack route.
+- Produces: `POST /user/chats/{peer_id}/messages` → `{"message": …, "update_id": int}`; `POST /user/chats/{peer_id}/messages/{message_id}/press` → `{"query_id": str, "update_id": int}`. Task 5 waits on these ids and Task 6 passes them to the ack route.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -123,7 +240,7 @@ Both values were already produced and thrown away."
 
 ---
 
-### Task 2: Replies in a private bot chat
+### Task 3: Replies in a private bot chat
 
 **Files:**
 - Modify: `telemulator/user_api.py:52-62` and the tail of `send_text`, `send_photo`, `send_document`
@@ -132,7 +249,7 @@ Both values were already produced and thrown away."
 
 **Interfaces:**
 - Consumes: `network.bot_chats`, `network.ensure_private_chat`
-- Produces: `_append_inbound(network, user_id, bot_id, fields, *, reply_to_message_id: int | None = None)`; `send_text` honouring the argument for bot dialogs; `send_photo(network, user_id, peer_id, *, file_id, reply_to_message_id=None)`; `send_document(network, user_id, peer_id, *, file_id, file_name, reply_to_message_id=None)`; `UserClient.send`, `send_photo`, `send_document` all accepting `reply_to_message_id`. Task 3 exposes it over HTTP for media; Task 5 uses all of it.
+- Produces: `_append_inbound(network, user_id, bot_id, fields, *, reply_to_message_id: int | None = None)`; `send_text` honouring the argument for bot dialogs; `send_photo(network, user_id, peer_id, *, file_id, reply_to_message_id=None)`; `send_document(network, user_id, peer_id, *, file_id, file_name, reply_to_message_id=None)`; `UserClient.send`, `send_photo`, `send_document` all accepting `reply_to_message_id`. Task 4 exposes it over HTTP for media; Task 6 uses all of it.
 
 `send_text` already takes `reply_to_message_id`, and honours it — but only where the thread lives in `network.chats`, which is groups and channels. A dialog with a bot lives in `network.bot_chats` and leaves through `_append_inbound`, where the argument never arrives. A bot whose interface is "answer your own message to act on it" is therefore untestable today.
 
@@ -364,15 +481,15 @@ without one, and a framework reads chat off the quote."
 
 ---
 
-### Task 3: HTTP routes for photos and documents
+### Task 4: HTTP routes for photos and documents
 
 **Files:**
 - Modify: `telemulator/user_http.py`
 - Test: `tests/test_user_media.py`
 
 **Interfaces:**
-- Consumes: `user_api.send_photo(network, user_id, peer_id, *, file_id, reply_to_message_id)` and `user_api.send_document(network, user_id, peer_id, *, file_id, file_name, reply_to_message_id)` from Task 2, both returning `int`
-- Produces: `POST /user/chats/{peer_id}/photos` and `POST /user/chats/{peer_id}/documents`, each taking an optional `reply_to_message_id` and returning `{"update_id": int}`. Task 5 calls them from `send_photo` and `send_document`.
+- Consumes: `user_api.send_photo(network, user_id, peer_id, *, file_id, reply_to_message_id)` and `user_api.send_document(network, user_id, peer_id, *, file_id, file_name, reply_to_message_id)` from Task 3, both returning `int`
+- Produces: `POST /user/chats/{peer_id}/photos` and `POST /user/chats/{peer_id}/documents`, each taking an optional `reply_to_message_id` and returning `{"update_id": int}`. Task 6 calls them from `send_photo` and `send_document`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -520,7 +637,7 @@ a bot that reads attachments."
 
 ---
 
-### Task 4: Await the offset acknowledgement over HTTP
+### Task 5: Await the offset acknowledgement over HTTP
 
 **Files:**
 - Modify: `telemulator/user_http.py`
@@ -528,7 +645,7 @@ a bot that reads attachments."
 
 **Interfaces:**
 - Consumes: `network.wait_acked(token, update_id, timeout) -> bool`, and `user_api._token_for_bot(network, bot_id) -> str | None`
-- Produces: `GET /user/chats/{peer_id}/acks/{update_id}?timeout=<float>` → `{"acked": bool}`. Task 5 calls it from `_wait`.
+- Produces: `GET /user/chats/{peer_id}/acks/{update_id}?timeout=<float>` → `{"acked": bool}`. Task 6 calls it from `_wait`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -609,7 +726,7 @@ no way to."
 
 ---
 
-### Task 5: `RemoteUserClient`
+### Task 6: `RemoteUserClient`
 
 **Files:**
 - Modify: `telemulator/view.py:77-96`
@@ -617,8 +734,8 @@ no way to."
 - Test: `tests/test_remote_client.py`
 
 **Interfaces:**
-- Consumes: every route from Tasks 1–4; `Screen`, `BotSilentError`, `DEFAULT_TIMEOUT`, `SILENT_DUMP_CALLS` from `telemulator.client`; `SentMessage` and `parse_markup` from `telemulator.view`
-- Produces: `RemoteUserClient(base_url: str, user_id: int, bot_token: str, *, first_name: str = "Test", transport: httpx.AsyncBaseTransport | None = None)` with `await open()`, `await send(text, *, timeout, expect_reply, reply_to_message_id)`, `await press(label, *, timeout)`, `await press_callback(data, *, timeout)`, `await send_photo(*, file_id, timeout, expect_reply, reply_to_message_id)`, `await send_document(*, file_id, file_name, timeout, expect_reply, reply_to_message_id)`, `await send_to(peer_id, text)`, `await screen()`, `await messages()`, `await aclose()`. Task 6 exports it.
+- Consumes: every route from Tasks 1–5; `Screen`, `BotSilentError`, `DEFAULT_TIMEOUT`, `SILENT_DUMP_CALLS` from `telemulator.client`; `SentMessage` and `parse_markup` from `telemulator.view`
+- Produces: `RemoteUserClient(base_url: str, user_id: int, bot_token: str, *, first_name: str = "Test", transport: httpx.AsyncBaseTransport | None = None)` with `await open()`, `await send(text, *, timeout, expect_reply, reply_to_message_id)`, `await press(label, *, timeout)`, `await press_callback(data, *, timeout)`, `await send_photo(*, file_id, timeout, expect_reply, reply_to_message_id)`, `await send_document(*, file_id, file_name, timeout, expect_reply, reply_to_message_id)`, `await send_to(peer_id, text)`, `await screen()`, `await messages()`, `await aclose()`. Task 7 exports it.
 
 - [ ] **Step 1: Extract message parsing to module level**
 
@@ -1042,7 +1159,7 @@ Message parsing moves to module level so both clients share one implementation."
 
 ---
 
-### Task 6: Export, document, release 0.3.0
+### Task 7: Export, document, release 0.3.0
 
 **Files:**
 - Modify: `telemulator/__init__.py`
@@ -1052,7 +1169,7 @@ Message parsing moves to module level so both clients share one implementation."
 - Test: `tests/test_app.py`
 
 **Interfaces:**
-- Consumes: `RemoteUserClient` from Task 5
+- Consumes: `RemoteUserClient` from Task 6
 - Produces: `from telemulator import RemoteUserClient`; image tag `ghcr.io/shiawasenahoshi/telemulator/emulator:0.3.0`
 
 - [ ] **Step 1: Write the failing export test**
