@@ -54,6 +54,24 @@ def _as_markup_json(markup: Any) -> str | None:
   return json.dumps(markup)
 
 
+def sent_from_stored(chat_id: int, msg: dict[str, Any]) -> SentMessage:
+  inline, reply, removed = parse_markup(_as_markup_json(msg.get("reply_markup")))
+  return SentMessage(
+    message_id=int(msg["message_id"]),
+    chat_id=chat_id,
+    text=str(msg.get("text") or msg.get("caption") or ""),
+    inline_keyboard=inline,
+    reply_keyboard=reply,
+    reply_keyboard_removed=removed,
+    raw=msg,
+  )
+
+
+def is_bot_message(msg: dict[str, Any], bot_id: int) -> bool:
+  from_user = msg.get("from") or {}
+  return from_user.get("id") == bot_id or bool(from_user.get("is_bot"))
+
+
 class BotView:
   """The network as one bot sees it: outgoing messages, queue and ack."""
 
@@ -75,25 +93,10 @@ class BotView:
     return self.network.files
 
   def _sent(self, chat_id: int, msg: dict[str, Any]) -> SentMessage:
-    inline, reply, removed = parse_markup(_as_markup_json(msg.get("reply_markup")))
-    return SentMessage(
-      message_id=int(msg["message_id"]),
-      chat_id=chat_id,
-      text=str(msg.get("text") or msg.get("caption") or ""),
-      inline_keyboard=inline,
-      reply_keyboard=reply,
-      reply_keyboard_removed=removed,
-      raw=msg,
-    )
+    return sent_from_stored(chat_id, msg)
 
   def _bot_thread_messages(self, chat_id: int, thread: list[dict[str, Any]]) -> list[SentMessage]:
-    bot_id = self.bot_id
-    out: list[SentMessage] = []
-    for msg in thread:
-      from_user = msg.get("from") or {}
-      if from_user.get("id") == bot_id or from_user.get("is_bot"):
-        out.append(self._sent(chat_id, msg))
-    return out
+    return [sent_from_stored(chat_id, m) for m in thread if is_bot_message(m, self.bot_id)]
 
   def messages_for(self, chat_id: int) -> list[SentMessage]:
     thread = self.network.bot_chats.get((chat_id, self.bot_id), [])
