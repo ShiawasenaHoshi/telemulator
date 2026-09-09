@@ -115,6 +115,23 @@ async def test_reply_keyboard_is_null_in_p2p_even_if_bot_dialog_has_one() -> Non
     assert p2p_feed["reply_keyboard"] is None
 
 
+async def test_message_and_press_return_the_update_id() -> None:
+  app = create_app()
+  async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:
+    await client.post("/admin/users", json={"id": 1, "first_name": "A"})
+    await client.post("/admin/bots", json={"token": TOKEN, "first_name": "Demo"})
+    await client.post("/admin/dialogs", json={"user_id": 1, "bot_token": TOKEN})
+    await client.post("/user/sessions", json={"user_id": 1})
+
+    sent = await client.post("/user/chats/111111111/messages", json={"text": "hi"})
+    assert sent.status_code == 200
+    first = sent.json()["update_id"]
+    assert isinstance(first, int)
+
+    again = await client.post("/user/chats/111111111/messages", json={"text": "hi again"})
+    assert again.json()["update_id"] > first
+
+
 async def test_send_photo_bytes_are_downloadable_via_user_files() -> None:
   app = create_app()
   async with AsyncClient(transport=ASGITransport(app=app), base_url="http://tg") as client:

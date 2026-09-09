@@ -197,7 +197,7 @@ async def post_message(
   text = str(body.get("text") or "")
   reply_to_message_id = body.get("reply_to_message_id")
   try:
-    send_text(
+    update_id = send_text(
       net, viewer_id, peer_id, text, reply_to_message_id=reply_to_message_id
     )
   except KeyError as exc:
@@ -205,21 +205,21 @@ async def post_message(
   except PermissionError as exc:
     raise HTTPException(status_code=403, detail=str(exc)) from exc
   stored = net.thread_for(viewer_id, peer_id)[-1]
-  return {"message": message_for_viewer(net, stored, peer_id)}
+  return {"message": message_for_viewer(net, stored, peer_id), "update_id": update_id}
 
 
 @router.post("/user/chats/{peer_id}/messages/{message_id}/press")
 async def press(
   peer_id: int, message_id: int, request: Request, body: dict[str, Any]
-) -> dict[str, str]:
+) -> dict[str, Any]:
   net = _net(request)
   viewer_id = _viewer_id(request)
   data = str(body.get("data") or "")
   try:
-    _, query_id = _press(net, viewer_id, peer_id, message_id, data)
+    update_id, query_id = _press(net, viewer_id, peer_id, message_id, data)
   except KeyError as exc:
     raise HTTPException(status_code=400, detail=str(exc)) from exc
-  return {"query_id": query_id}
+  return {"query_id": query_id, "update_id": update_id}
 
 
 @router.get("/user/files/{path:path}")
