@@ -287,3 +287,10 @@ async def test_journal_hole_is_listed_in_both_admin_lists(client) -> None:
   assert [r["method"] for r in journal["unimplemented"]] == ["sendPoll"]
   js = (await client.get("/app.js")).text
   assert 'rec.kind !== "unimplemented"' in js
+
+
+def test_remote_client_is_exported() -> None:
+  import telemulator
+
+  assert "RemoteUserClient" in telemulator.__all__
+  assert telemulator.RemoteUserClient is not None

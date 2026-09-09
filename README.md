@@ -13,11 +13,11 @@ Not affiliated with Telegram.
 
 ## Install
 
-    pip install "telemulator @ git+https://github.com/ShiawasenaHoshi/telemulator.git@v0.2.2"
+    pip install "telemulator @ git+https://github.com/ShiawasenaHoshi/telemulator.git@v0.3.0"
 
 Or run the image:
 
-    docker run -p 8081:8081 ghcr.io/shiawasenahoshi/telemulator/emulator:0.2.2
+    docker run -p 8081:8081 ghcr.io/shiawasenahoshi/telemulator/emulator:0.3.0
 
 ## Use it from a test
 
@@ -54,6 +54,26 @@ assertion. Pass `expect_reply=False` to `send` when no answer is expected.
 
 Two people can talk with no bot involved at all: `await ann.send_to(bob.user_id,
 "hi")` puts the message in both feeds.
+
+## When the bot cannot be imported
+
+The example above runs the bot in the test's own process. A bot on another
+interpreter — or another language — runs elsewhere and reaches the emulator
+over HTTP. Point it at a running server, and drive the person with
+`RemoteUserClient`:
+
+```python
+from telemulator import RemoteUserClient
+
+user = await RemoteUserClient("http://localhost:8081", 900001, BOT_TOKEN).open()
+screen = await user.send("/start")
+assert "Menu" in screen.text
+await user.aclose()
+```
+
+Same methods as `UserClient`, and the same wait: `send` returns once the bot
+has acknowledged the update, not once the wire falls quiet. `screen()` and
+`messages()` are awaitable here, because they cross the wire.
 
 ## Develop
 
