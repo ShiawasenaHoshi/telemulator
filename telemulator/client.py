@@ -67,10 +67,21 @@ class UserClient:
     send_text(self._view.network, self.user_id, peer_id, text)
 
   async def send(
-    self, text: str, *, timeout: float = DEFAULT_TIMEOUT, expect_reply: bool = True
+    self,
+    text: str,
+    *,
+    timeout: float = DEFAULT_TIMEOUT,
+    expect_reply: bool = True,
+    reply_to_message_id: int | None = None,
   ) -> Screen | None:
     before = len(self.messages())
-    update_id = send_text(self._view.network, self.user_id, self._view.bot_id, text)
+    update_id = send_text(
+      self._view.network,
+      self.user_id,
+      self._view.bot_id,
+      text,
+      reply_to_message_id=reply_to_message_id,
+    )
     if not expect_reply:
       await asyncio.sleep(0.5)
       return self.screen()
@@ -117,6 +128,7 @@ class UserClient:
     file_name: str = "certificate.pdf",
     timeout: float = DEFAULT_TIMEOUT,
     expect_reply: bool = True,
+    reply_to_message_id: int | None = None,
   ) -> Screen | None:
     """User sends a document; the bot will fetch it back via getFile."""
     before = len(self.messages())
@@ -126,6 +138,7 @@ class UserClient:
       self._view.bot_id,
       file_id=file_id,
       file_name=file_name,
+      reply_to_message_id=reply_to_message_id,
     )
     if not expect_reply:
       await asyncio.sleep(0.5)
@@ -138,6 +151,7 @@ class UserClient:
     file_id: str = "user-photo-1",
     timeout: float = DEFAULT_TIMEOUT,
     expect_reply: bool = True,
+    reply_to_message_id: int | None = None,
   ) -> Screen | None:
     """User sends a photo; the bot will fetch it back via getFile."""
     before = len(self.messages())
@@ -146,6 +160,7 @@ class UserClient:
       self.user_id,
       self._view.bot_id,
       file_id=file_id,
+      reply_to_message_id=reply_to_message_id,
     )
     if not expect_reply:
       await asyncio.sleep(0.5)
